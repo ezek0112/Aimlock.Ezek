@@ -1,20 +1,14 @@
--- AIMLOCK DO EZEK v13.5 - ESP OTIMIZADO PRA MOBILE
--- Sistema protegido + ESP leve (não trava celular)
+-- AIMLOCK DO EZEK v14 - CORRIGIDO PRA ASSASSINS 2 / PROJECT SLAYERS
+-- Lock + ESP otimizado pra mobile
 
--- ============ PROTEÇÃO / ANTI-TAMPER ============
+-- ============ PROTEÇÃO ============
 local PROTECAO = {}
-
 PROTECAO.chave = tostring(math.random(100000, 999999)) .. tostring(tick())
 
 local function verificarAmbiente()
     local checks = {
-        game ~= nil,
-        game.GetService ~= nil,
-        Instance ~= nil,
-        Instance.new ~= nil,
-        task ~= nil,
-        task.wait ~= nil,
-        pcall ~= nil,
+        game ~= nil, game.GetService ~= nil, Instance ~= nil,
+        Instance.new ~= nil, task ~= nil, task.wait ~= nil, pcall ~= nil,
     }
     for _, check in ipairs(checks) do
         if not check then return false end
@@ -22,40 +16,9 @@ local function verificarAmbiente()
     return true
 end
 
-local function detectarHook()
-    local hooks = {}
-    
-    pcall(function()
-        local test = Instance.new("Folder")
-        if not test or not test:IsA("Folder") then
-            table.insert(hooks, "Instance.new")
-        end
-        if test then test:Destroy() end
-    end)
-    
-    local ok = pcall(function() return true end)
-    if not ok then table.insert(hooks, "pcall") end
-    
-    pcall(function()
-        if typeof(task.wait) ~= "function" then
-            table.insert(hooks, "task.wait")
-        end
-    end)
-    
-    return hooks
-end
-
-PROTECAO.marca = "AIMLOCK-DO-EZEK-v13.5-" .. PROTECAO.chave
-
--- ============ EXECUÇÃO PRINCIPAL ============
 if not verificarAmbiente() then
     warn("❌ [EZEK] Ambiente inválido!")
     return
-end
-
-local hooksDetectados = detectarHook()
-if #hooksDetectados > 0 then
-    warn("⚠️ [EZEK] Funções modificadas: " .. table.concat(hooksDetectados, ", "))
 end
 
 if _G.EZEK_AIMLOCK_LOADED then
@@ -74,38 +37,32 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- ============ CONFIG ============
-local DEBUG_MODE = false
-
 -- ============ ESTADO ============
 local locked = false
 local target = nil
 local cameraConnection = nil
-local bodyConnection = nil
 local espEnabled = false
 local espHighlights = {}
 local espLabels = {}
 local espUpdateConnection = nil
 local targetHealthESP = nil
 
--- Cache de ESP (pra não varrer o Workspace toda hora)
 local espUltimoScan = 0
 local ESP_SCAN_INTERVALO = 0.5
 local espUltimaAtualizacaoLabel = 0
 local ESP_LABEL_INTERVALO = 0.15
 
--- Escala
+-- Cache de candidatos (pra não varrer Workspace toda hora no findTarget)
+local candidatosCache = {}
+local candidatosCacheTime = 0
+local CANDIDATOS_CACHE_INTERVALO = 0.3
+
 local escalaW = 1.0
 local escalaH = 1.0
 local ESCALA_MIN = 0.7
 local ESCALA_MAX = 1.6
 
--- Filtros do ESP
-local filtros = {
-    players  = true,
-    dummies  = true,
-    monstros = true,
-}
+local filtros = { players = true, dummies = true, monstros = true }
 
 -- ============ CORES ============
 local CORES = {
@@ -162,7 +119,6 @@ topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundColor3 = CORES.topo
 topBar.BorderSizePixel = 0
 topBar.Parent = main
-
 Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
 
 local topFix = Instance.new("Frame")
@@ -176,7 +132,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK"
+title.Text = "🎯 AIMLOCK DO EZEK v14"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -298,7 +254,7 @@ local function criarCheckbox(texto, chave, posY)
     checkFrame.Position = UDim2.new(0, 8, 0, posY)
     checkFrame.BackgroundTransparency = 1
     checkFrame.Parent = filtroFrame
-    
+
     local box = Instance.new("TextButton")
     box.Size = UDim2.new(0, 22, 0, 22)
     box.Position = UDim2.new(0, 0, 0, 2)
@@ -309,7 +265,7 @@ local function criarCheckbox(texto, chave, posY)
     box.TextSize = 14
     box.Parent = checkFrame
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 5)
-    
+
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -30, 1, 0)
     label.Position = UDim2.new(0, 30, 0, 0)
@@ -320,12 +276,12 @@ local function criarCheckbox(texto, chave, posY)
     label.TextSize = 13
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = checkFrame
-    
+
     local function toggle()
         filtros[chave] = not filtros[chave]
         box.BackgroundColor3 = filtros[chave] and CORES.checkOn or CORES.checkOff
         box.Text = filtros[chave] and "✓" or ""
-        
+
         if not filtros[chave] and espEnabled then
             for model, hl in pairs(espHighlights) do
                 if getTipoAlvo(model) == chave then
@@ -338,11 +294,9 @@ local function criarCheckbox(texto, chave, posY)
                 end
             end
         end
-        
-        -- Força scan imediato pra adicionar novos
         espUltimoScan = 0
     end
-    
+
     box.MouseButton1Click:Connect(toggle)
     label.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -351,8 +305,8 @@ local function criarCheckbox(texto, chave, posY)
     end)
 end
 
-criarCheckbox("👤 Players",   "players",  26)
-criarCheckbox("🎯 Dummies",   "dummies",  56)
+criarCheckbox("👤 Players", "players", 26)
+criarCheckbox("🎯 Dummies", "dummies", 56)
 criarCheckbox("👹 Monstros / NPCs", "monstros", 86)
 
 local slidersFrame = Instance.new("Frame")
@@ -380,7 +334,7 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
     linha.Position = UDim2.new(0, 8, 0, posY)
     linha.BackgroundTransparency = 1
     linha.Parent = slidersFrame
-    
+
     local titulo = Instance.new("TextLabel")
     titulo.Size = UDim2.new(1, 0, 0, 14)
     titulo.Position = UDim2.new(0, 0, 0, 0)
@@ -391,7 +345,7 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
     titulo.TextSize = 12
     titulo.TextXAlignment = Enum.TextXAlignment.Left
     titulo.Parent = linha
-    
+
     local trilha = Instance.new("Frame")
     trilha.Size = UDim2.new(1, 0, 0, 12)
     trilha.Position = UDim2.new(0, 0, 0, 22)
@@ -399,14 +353,14 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
     trilha.BorderSizePixel = 0
     trilha.Parent = linha
     Instance.new("UICorner", trilha).CornerRadius = UDim.new(1, 0)
-    
+
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((valorInicial - minVal) / (maxVal - minVal), 0, 1, 0)
     fill.BackgroundColor3 = CORES.sliderFill
     fill.BorderSizePixel = 0
     fill.Parent = trilha
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-    
+
     local knob = Instance.new("Frame")
     knob.Size = UDim2.new(0, 18, 0, 18)
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -416,7 +370,7 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
     knob.ZIndex = 2
     knob.Parent = trilha
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-    
+
     local hitArea = Instance.new("TextButton")
     hitArea.Size = UDim2.new(1, 0, 0, 24)
     hitArea.Position = UDim2.new(0, 0, 0, 16)
@@ -424,10 +378,10 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
     hitArea.Text = ""
     hitArea.ZIndex = 3
     hitArea.Parent = linha
-    
+
     local valor = valorInicial
     local arrastando = false
-    
+
     local function setarValor(v)
         v = math.clamp(v, minVal, maxVal)
         valor = v
@@ -437,7 +391,7 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
         titulo.Text = textoLabel .. ": " .. math.floor(v * 100) .. "%"
         callback(v)
     end
-    
+
     local function processar(input)
         local absX = trilha.AbsolutePosition.X
         local width = trilha.AbsoluteSize.X
@@ -446,20 +400,20 @@ local function criarSlider(textoLabel, minVal, maxVal, valorInicial, posY, callb
         local v = minVal + (maxVal - minVal) * pct
         setarValor(v)
     end
-    
+
     hitArea.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             arrastando = true
             processar(input)
         end
     end)
-    
+
     UserInputService.InputChanged:Connect(function(input)
         if arrastando and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             processar(input)
         end
     end)
-    
+
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             arrastando = false
@@ -472,10 +426,8 @@ local minimized = false
 local function aplicarTamanho()
     local w = math.floor(tamWbase * escalaW)
     local h = math.floor(tamHbase * escalaH)
-    
     tamanhoNormal = UDim2.new(0, w, 0, h)
     tamanhoMin    = UDim2.new(0, w, 0, tamHmin)
-    
     if not minimized then
         TweenService:Create(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
             Size = tamanhoNormal
@@ -590,34 +542,45 @@ local function setAutoRotate(state)
     end)
 end
 
+-- ============ GET HEALTH (ROBUSTO PRA ASSASSINS 2) ============
 local function getHealth(model)
     if not model then return nil, nil, nil end
-    
+
+    -- 1) Humanoid
     local hum = model:FindFirstChildOfClass("Humanoid")
-    if hum then
+    if hum and hum.Health > 0 then
         return hum.Health, hum.MaxHealth, "Humanoid"
     end
-    
-    local hp = model:GetAttribute("Health") or model:GetAttribute("HP") or model:GetAttribute("health")
-    local maxHp = model:GetAttribute("MaxHealth") or model:GetAttribute("MaxHP") or model:GetAttribute("maxHealth")
-    if hp then
-        return hp, maxHp or 100, "Attribute"
+
+    -- 2) Attributes (variações)
+    local atributos = {"Health", "HP", "health", "CurrentHealth", "hp"}
+    for _, nome in ipairs(atributos) do
+        local v = model:GetAttribute(nome)
+        if v and type(v) == "number" then
+            local maxV = model:GetAttribute("MaxHealth")
+                      or model:GetAttribute("MaxHP")
+                      or model:GetAttribute("maxHealth")
+                      or 100
+            return v, maxV, "Attribute"
+        end
     end
-    
-    local hpVal = model:FindFirstChild("Health") or model:FindFirstChild("HP")
-    if hpVal and hpVal:IsA("NumberValue") then
-        local maxVal = model:FindFirstChild("MaxHealth") or model:FindFirstChild("MaxHP")
-        return hpVal.Value, (maxVal and maxVal.Value) or 100, "NumberValue"
+
+    -- 3) NumberValue (recursivo dentro do model)
+    for _, nome in ipairs({"Health", "HP", "health"}) do
+        local hpVal = model:FindFirstChild(nome, true)
+        if hpVal and hpVal:IsA("NumberValue") then
+            return hpVal.Value, 100, "NumberValue"
+        end
     end
-    
+
     return nil, nil, nil
 end
 
 local function getAimPart(model)
     if not model then return nil end
-    return model:FindFirstChild("Head") 
-        or model:FindFirstChild("HumanoidRootPart") 
-        or model:FindFirstChild("UpperTorso") 
+    return model:FindFirstChild("Head")
+        or model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("UpperTorso")
         or model:FindFirstChild("Torso")
         or model:FindFirstChild("Root")
         or model:FindFirstChild("Body")
@@ -626,16 +589,17 @@ end
 
 local function getTipoAlvo(model)
     if not model then return "monstros" end
-    
+
     if Players:GetPlayerFromCharacter(model) then
         return "players"
     end
-    
+
     local n = string.lower(model.Name)
-    if n:find("dummy") or n:find("training") or n:find("test") or n:find("practice") then
+    if n:find("dummy") or n:find("training") or n:find("test")
+       or n:find("practice") or n:find("target") then
         return "dummies"
     end
-    
+
     local parent = model.Parent
     if parent then
         local pn = string.lower(parent.Name)
@@ -643,7 +607,7 @@ local function getTipoAlvo(model)
             return "dummies"
         end
     end
-    
+
     return "monstros"
 end
 
@@ -651,29 +615,30 @@ local function isValidTarget(model)
     if not model or not model.Parent then return false end
     if model == player.Character then return false end
     if not model:IsA("Model") then return false end
-    if model:FindFirstChildOfClass("Tool") then return false end
-    if Players:GetPlayerFromCharacter(model) then return false end
-    
+
+    -- NÃO filtra por Tool nem por ser player (era o bug principal)
     local hp = getHealth(model)
     if not hp or hp <= 0 then return false end
     if not getAimPart(model) then return false end
-    
+
+    -- Evita pegar partes soltas tipo acessórios
+    if #model:GetChildren() < 2 then return false end
+
     return true
 end
 
--- ============ COLETAR CANDIDATOS (OTIMIZADO) ============
+-- ============ COLETAR CANDIDATOS (PROFUNDIDADE 6) ============
 local function getCandidates()
     local lista = {}
     local vistos = {}
-    
-    -- Players primeiro (rápido)
+
+    -- Players
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local mesmoTime = false
             if player.Team and plr.Team and player.Team == plr.Team then
                 mesmoTime = true
             end
-            
             if not mesmoTime then
                 local hum = plr.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 and getAimPart(plr.Character) then
@@ -683,10 +648,10 @@ local function getCandidates()
             end
         end
     end
-    
-    -- Recursão limitada (em vez de GetDescendants que é pesado)
+
+    -- NPCs / monstros (recursão até 6 níveis)
     local function procurar(pasta, profundidade)
-        if profundidade > 3 then return end
+        if profundidade > 6 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
             if obj:IsA("Model") and not vistos[obj] then
                 if isValidTarget(obj) then
@@ -699,86 +664,94 @@ local function getCandidates()
             end
         end
     end
-    
     procurar(Workspace, 0)
-    
+
     return lista
 end
 
+-- Cache de candidatos
+local function getCandidatesCacheado()
+    local agora = tick()
+    if agora - candidatosCacheTime >= CANDIDATOS_CACHE_INTERVALO then
+        candidatosCache = getCandidates()
+        candidatosCacheTime = agora
+    end
+    return candidatosCache
+end
+
+-- ============ FIND TARGET (ÂNGULO 75°) ============
 local function findTarget()
     local character = player.Character
     if not character then return nil end
-    
+
     local camPos = camera.CFrame.Position
     local camLook = camera.CFrame.LookVector
     local bestTarget, bestScore = nil, math.huge
-    
-    for _, model in ipairs(getCandidates()) do
+
+    for _, model in ipairs(getCandidatesCacheado()) do
         local part = getAimPart(model)
         if part then
             local dir = (part.Position - camPos).Unit
             local ang = math.acos(math.clamp(camLook:Dot(dir), -1, 1))
             local dist = (part.Position - camPos).Magnitude
             local score = ang + (dist * 0.001)
-            
+
             if score < bestScore then
                 bestTarget = model
                 bestScore = score
             end
         end
     end
-    
+
     if bestTarget then
         local part = getAimPart(bestTarget)
         if part then
             local dir = (part.Position - camera.CFrame.Position).Unit
             local ang = math.acos(math.clamp(camera.CFrame.LookVector:Dot(dir), -1, 1))
-            if ang < math.rad(35) then
+            if ang < math.rad(75) then
                 return bestTarget
             end
         end
     end
-    
+
     return nil
 end
 
 local function updateTargetInfo()
     if not target or not target.Parent then return end
-    
-    local hp, maxHp, tipo = getHealth(target)
+    local hp, maxHp = getHealth(target)
     if not hp then return end
-    
+
     local char = player.Character
     local myRoot = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
     local tRoot = getAimPart(target)
-    
+
     local pct = math.floor((hp / math.max(maxHp or 100, 1)) * 100)
     local dist = 0
     if myRoot and tRoot then dist = math.floor((tRoot.Position - myRoot.Position).Magnitude) end
-    
+
     local tName = target.Name
     local tagTipo = "🤖 NPC"
     local tPlr = Players:GetPlayerFromCharacter(target)
-    if tPlr then 
-        tName = tPlr.Name 
+    if tPlr then
+        tName = tPlr.Name
         tagTipo = "👤 Player"
     end
-    
+
     local col = "🟢"
     if pct < 30 then col = "🔴" elseif pct < 60 then col = "🟡" end
-    
-    infoLabel.Text = string.format("%s %s\n%s %d/%d (%d%%)  📏 %dm", tagTipo, tName, col, math.floor(hp), math.floor(maxHp or 100), pct, dist)
+
+    infoLabel.Text = string.format("%s %s\n%s %d/%d (%d%%) 📏 %dm", tagTipo, tName, col, math.floor(hp), math.floor(maxHp or 100), pct, dist)
 end
 
 local function criarHPBarDoAlvo(model)
     if targetHealthESP and targetHealthESP.Parent then
         targetHealthESP:Destroy()
     end
-    
     if not model or not model.Parent then return end
     local root = getAimPart(model)
     if not root then return end
-    
+
     local bb = Instance.new("BillboardGui")
     bb.Name = "EZEK_TargetHP_" .. PROTECAO.chave
     bb.Adornee = root
@@ -788,7 +761,7 @@ local function criarHPBarDoAlvo(model)
     bb.MaxDistance = 1000
     bb.Parent = model
     targetHealthESP = bb
-    
+
     local barBg = Instance.new("Frame")
     barBg.Name = "BarBg"
     barBg.Size = UDim2.new(1, 0, 0, 14)
@@ -797,13 +770,13 @@ local function criarHPBarDoAlvo(model)
     barBg.BorderSizePixel = 0
     barBg.Parent = bb
     Instance.new("UICorner", barBg).CornerRadius = UDim.new(0, 7)
-    
+
     local bgStroke = Instance.new("UIStroke")
     bgStroke.Color = Color3.fromRGB(255, 255, 255)
     bgStroke.Thickness = 1
     bgStroke.Transparency = 0.3
     bgStroke.Parent = barBg
-    
+
     local barFill = Instance.new("Frame")
     barFill.Name = "Fill"
     barFill.Size = UDim2.new(1, 0, 1, 0)
@@ -811,7 +784,7 @@ local function criarHPBarDoAlvo(model)
     barFill.BorderSizePixel = 0
     barFill.Parent = barBg
     Instance.new("UICorner", barFill).CornerRadius = UDim.new(0, 7)
-    
+
     local label = Instance.new("TextLabel")
     label.Name = "Label"
     label.Size = UDim2.new(1, 0, 0, 18)
@@ -829,12 +802,10 @@ end
 local function atualizarHPBarDoAlvo()
     if not targetHealthESP or not targetHealthESP.Parent then return end
     if not target or not target.Parent then return end
-    
     local hp, maxHp = getHealth(target)
     if not hp then return end
-    
     local pct = math.clamp(hp / math.max(maxHp or 100, 1), 0, 1)
-    
+
     local barBg = targetHealthESP:FindFirstChild("BarBg")
     if barBg then
         local fill = barBg:FindFirstChild("Fill")
@@ -849,13 +820,12 @@ local function atualizarHPBarDoAlvo()
             end
         end
     end
-    
     local label = targetHealthESP:FindFirstChild("Label")
     if label then
         local tName = target.Name
         local tPlr = Players:GetPlayerFromCharacter(target)
         if tPlr then tName = tPlr.Name end
-        label.Text = string.format("%s  %d/%d", tName, math.floor(hp), math.floor(maxHp or 100))
+        label.Text = string.format("%s %d/%d", tName, math.floor(hp), math.floor(maxHp or 100))
     end
 end
 
@@ -866,56 +836,67 @@ local function removerHPBarDoAlvo()
     end
 end
 
+-- ============ UPDATE CAMERA (DISTÂNCIA DINÂMICA) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
-    if not char then unlockTarget() return end
+    if not char then return end
     local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-    if not myRoot then unlockTarget() return end
-    
+    if not myRoot then return end
+
     local hp = getHealth(target)
-    if not hp or hp <= 0 then unlockTarget() return end
-    
+    if not hp or hp <= 0 then
+        task.defer(unlockTarget)
+        return
+    end
+
     local part = getAimPart(target)
-    if not part then unlockTarget() return end
-    
+    if not part then return end
+
     local aimPos = part.Position
     if part.Name == "Head" then aimPos = aimPos + Vector3.new(0, -0.3, 0) end
-    
+
     local eyePos = myRoot.Position + Vector3.new(0, 3.5, 0)
-    local dir = (aimPos - eyePos).Unit
-    local camPos = eyePos - dir * 13.2
+    local dir = aimPos - eyePos
+    if dir.Magnitude < 0.1 then return end
+    dir = dir.Unit
+
+    local dist = (aimPos - eyePos).Magnitude
+    local camDist = math.clamp(dist * 0.6, 6, 13.2)
+
+    local camPos = eyePos - dir * camDist
     camera.CFrame = CFrame.lookAt(camPos, aimPos)
     updateTargetInfo()
     atualizarHPBarDoAlvo()
 end
 
+-- ============ UPDATE BODY (RENDER STEP PRA GRUDAR) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
-    if not char then unlockTarget() return end
+    if not char then return end
     local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-    if not myRoot then unlockTarget() return end
-    
+    if not myRoot then return end
+
     local hp = getHealth(target)
-    if not hp or hp <= 0 then unlockTarget() return end
-    
+    if not hp or hp <= 0 then return end
+
     local part = getAimPart(target)
-    if not part then unlockTarget() return end
-    
+    if not part then return end
+
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
-    local lookDir = (flat - myRoot.Position).Unit
-    if lookDir.Magnitude > 0 then
-        myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir)
+    local lookDir = flat - myRoot.Position
+    if lookDir.Magnitude > 0.1 then
+        myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
     end
 end
 
--- ============ ESP (OTIMIZADO) ============
+-- ============ ESP ============
 local function createESP(model)
     if espHighlights[model] then return end
     local root = getAimPart(model)
     if not root then return end
-    
+
     local tipo = getTipoAlvo(model)
     local fillColor
     if tipo == "players" then
@@ -925,7 +906,7 @@ local function createESP(model)
     else
         fillColor = Color3.fromRGB(70, 150, 255)
     end
-    
+
     local hl = Instance.new("Highlight")
     hl.FillColor = fillColor
     hl.FillTransparency = 0.5
@@ -933,15 +914,15 @@ local function createESP(model)
     hl.OutlineTransparency = 0.2
     hl.Parent = model
     espHighlights[model] = hl
-    
+
     local bb = Instance.new("BillboardGui")
     bb.Adornee = root
     bb.Size = UDim2.new(0, 180, 0, 45)
     bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.AlwaysOnTop = true
-    bb.MaxDistance = 250 -- Reduzido pra performance
+    bb.MaxDistance = 250
     bb.Parent = model
-    
+
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 0.7
@@ -954,31 +935,21 @@ local function createESP(model)
     espLabels[model] = label
 end
 
--- ============ UPDATE ESP OTIMIZADO ============
 local function updateESP()
     if not espEnabled then return end
-    
     local agora = tick()
-    
-    -- ===== 1) SCAN DO WORKSPACE (a cada 0.5s) =====
+
     if agora - espUltimoScan >= ESP_SCAN_INTERVALO then
         espUltimoScan = agora
-        
         local candidatos = getCandidates()
         local vistos = {}
-        
         for _, model in ipairs(candidatos) do
             vistos[model] = true
             local tipo = getTipoAlvo(model)
-            
             if filtros[tipo] then
-                if not espHighlights[model] then
-                    createESP(model)
-                end
+                if not espHighlights[model] then createESP(model) end
             end
         end
-        
-        -- Remove ESP de quem saiu do filtro ou morreu
         for model, hl in pairs(espHighlights) do
             if not vistos[model] or not filtros[getTipoAlvo(model)] then
                 if hl and hl.Parent then hl:Destroy() end
@@ -990,35 +961,30 @@ local function updateESP()
             end
         end
     end
-    
-    -- ===== 2) ATUALIZAÇÃO DE TEXTO (a cada 0.15s) =====
+
     if agora - espUltimaAtualizacaoLabel < ESP_LABEL_INTERVALO then return end
     espUltimaAtualizacaoLabel = agora
-    
+
     local char = player.Character
     local myRoot = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
-    
+
     for model, label in pairs(espLabels) do
         if model.Parent and label.Parent then
             local hp, maxHp = getHealth(model)
             local root = getAimPart(model)
-            
             if hp and root and hp > 0 then
                 local dist = 0
                 if myRoot then dist = math.floor((root.Position - myRoot.Position).Magnitude) end
-                
                 local tName = model.Name
                 local tag = "🤖"
                 local tPlr = Players:GetPlayerFromCharacter(model)
                 if tPlr then tName = tPlr.Name tag = "👤" end
-                
                 local pct = (hp / math.max(maxHp or 100, 1)) * 100
                 local col = Color3.fromRGB(0, 255, 0)
                 if pct < 30 then col = Color3.fromRGB(255, 0, 0)
                 elseif pct < 60 then col = Color3.fromRGB(255, 255, 0) end
-                
                 label.TextColor3 = col
-                label.Text = string.format("%s %s\n❤️ %d/%d  📏 %dm", tag, tName, math.floor(hp), math.floor(maxHp or 100), dist)
+                label.Text = string.format("%s %s\n❤️ %d/%d 📏 %dm", tag, tName, math.floor(hp), math.floor(maxHp or 100), dist)
             else
                 if espHighlights[model] then espHighlights[model]:Destroy() espHighlights[model] = nil end
                 if label then label:Destroy() end
@@ -1043,11 +1009,8 @@ local function toggleESP()
     if espEnabled then
         espBtn.Text = "👁️ ESP: ON"
         espBtn.BackgroundColor3 = CORES.on
-        
-        -- Reset dos contadores pra forçar scan imediato
         espUltimoScan = 0
         espUltimaAtualizacaoLabel = 0
-        
         for _, model in ipairs(getCandidates()) do
             local tipo = getTipoAlvo(model)
             if filtros[tipo] then createESP(model) end
@@ -1066,6 +1029,7 @@ local function toggleESP()
     atualizarStatus()
 end
 
+-- ============ LOCK / UNLOCK (COM BIND TO RENDER STEP) ============
 function lockTarget(newTarget)
     target = newTarget
     locked = true
@@ -1075,11 +1039,23 @@ function lockTarget(newTarget)
     updateTargetInfo()
     criarHPBarDoAlvo(newTarget)
     setAutoRotate(false)
+
+    pcall(function()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.AutoRotate = false
+            hum.CameraOffset = Vector3.new(0, 0, 0)
+        end
+    end)
+
     camera.CameraType = Enum.CameraType.Scriptable
+
     if cameraConnection then cameraConnection:Disconnect() end
     cameraConnection = RunService.RenderStepped:Connect(updateCamera)
-    if bodyConnection then bodyConnection:Disconnect() end
-    bodyConnection = RunService.Heartbeat:Connect(updateBody)
+
+    RunService:UnbindFromRenderStep("EZEK_Body")
+    RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 1, updateBody)
+
     atualizarStatus()
 end
 
@@ -1090,20 +1066,23 @@ function unlockTarget()
     lockBtn.BackgroundColor3 = CORES.botao
     infoBox.Visible = false
     removerHPBarDoAlvo()
+
     if cameraConnection then cameraConnection:Disconnect() cameraConnection = nil end
-    if bodyConnection then bodyConnection:Disconnect() bodyConnection = nil end
+    RunService:UnbindFromRenderStep("EZEK_Body")
+
     camera.CameraType = Enum.CameraType.Custom
     setAutoRotate(true)
     atualizarStatus()
 end
 
 local function toggleLock()
-    if locked then unlockTarget()
+    if locked then
+        unlockTarget()
     else
         local t = findTarget()
-        if t then 
-            lockTarget(t) 
-        else 
+        if t then
+            lockTarget(t)
+        else
             print("❌ Nenhum alvo na mira! (players, dummies, NPCs, monstros)")
         end
     end
@@ -1132,6 +1111,6 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v13.5 (ESP OTIMIZADO) pronto!")
+print("✅ AIMLOCK DO EZEK v14 (Assassins 2 ready!) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("⚡ ESP agora é leve pra mobile")
+print("⌨️ Q = Lock | E = ESP")
