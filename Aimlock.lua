@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v15.2 - MOBILE + CONSOLE + CONTROLE
--- R1+R2 = Lock | L1+L2 = ESP
+-- AIMLOCK DO EZEK v15.3 - MOBILE + CONSOLE + CONTROLE
+-- R1+R2 = Lock | L1+L2 = ESP | Boneco segue o alvo
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -131,7 +131,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v15.2"
+title.Text = "🎯 AIMLOCK DO EZEK v15.3"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -857,6 +857,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
+-- ============ UPDATE BODY (CORRIGIDO - BONECO SEGUE O ALVO) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -870,8 +871,16 @@ local function updateBody()
     local part = getAimPart(target)
     if not part then return end
 
+    -- Força AutoRotate OFF em todo frame (Roblox reativa sozinho)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.AutoRotate = false
+    end
+
+    -- Direção plana (sem Y) pra não inclinar o boneco
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
+
     if lookDir.Magnitude > 0.1 then
         myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
     end
@@ -1037,8 +1046,9 @@ function lockTarget(newTarget)
     if cameraConnection then cameraConnection:Disconnect() end
     cameraConnection = RunService.RenderStepped:Connect(updateCamera)
 
+    -- Prioridade ALTA pra rodar depois da câmera e sobrescrever o Roblox
     RunService:UnbindFromRenderStep("EZEK_Body")
-    RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 1, updateBody)
+    RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Camera.Value - 1, updateBody)
 
     atualizarStatus()
 end
@@ -1088,20 +1098,17 @@ local comboCooldown = 0.5
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
 
-    -- Teclado (PC)
     if input.KeyCode == Enum.KeyCode.Q then
         toggleLock()
     elseif input.KeyCode == Enum.KeyCode.E then
         toggleESP()
     end
 
-    -- Marca os botões do controle como pressionados
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1Pressionado = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2Pressionado = true end
     if input.KeyCode == Enum.KeyCode.ButtonL1 then l1Pressionado = true end
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2Pressionado = true end
 
-    -- R1 + R2 juntos = LOCK
     if r1Pressionado and r2Pressionado then
         local agora = tick()
         if agora - ultimoToggleLock > comboCooldown then
@@ -1110,7 +1117,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
     end
 
-    -- L1 + L2 juntos = ESP
     if l1Pressionado and l2Pressionado then
         local agora = tick()
         if agora - ultimoToggleESP > comboCooldown then
@@ -1141,7 +1147,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v15.2 (mobile + console) pronto!")
+print("✅ AIMLOCK DO EZEK v15.3 (boneco segue alvo) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
 print("📱 Botão LOCK/ESP na tela")
