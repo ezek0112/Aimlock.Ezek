@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v15.4 - MOBILE + CONSOLE + CONTROLE
--- R1+R2 = Lock | L1+L2 = ESP | Analógico corrigido
+-- AIMLOCK DO EZEK v15.5 - MOBILE + CONSOLE + CONTROLE
+-- Lock no centro da tela + câmera aproxima quando perto
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -130,7 +130,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v15.4"
+title.Text = "🎯 AIMLOCK DO EZEK v15.5"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -667,6 +667,7 @@ local function getCandidatesCacheado()
     return candidatosCache
 end
 
+-- ============ FIND TARGET (SÓ NO CENTRO DA TELA - 20°) ============
 local function findTarget()
     local character = player.Character
     if not character then return nil end
@@ -695,7 +696,8 @@ local function findTarget()
         if part then
             local dir = (part.Position - camera.CFrame.Position).Unit
             local ang = math.acos(math.clamp(camera.CFrame.LookVector:Dot(dir), -1, 1))
-            if ang < math.rad(75) then
+            -- SÓ LOCKA SE TIVER NO CENTRO (20 graus)
+            if ang < math.rad(20) then
                 return bestTarget
             end
         end
@@ -823,7 +825,7 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ UPDATE CAMERA (Custom, sem Scriptable) ============
+-- ============ UPDATE CAMERA (CÂMERA APROXIMA QUANDO PERTO) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -849,7 +851,8 @@ local function updateCamera()
     dir = dir.Unit
 
     local dist = (aimPos - eyePos).Magnitude
-    local camDist = math.clamp(dist * 0.6, 6, 13.2)
+    -- CÂMERA APROXIMA QUANDO PERTO (mín 3, máx 13.2)
+    local camDist = math.clamp(dist * 0.5, 3, 13.2)
 
     local camPos = eyePos - dir * camDist
     camera.CFrame = CFrame.lookAt(camPos, aimPos)
@@ -857,7 +860,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (BONECO SEGUE O ALVO) ============
+-- ============ UPDATE BODY ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -1021,7 +1024,6 @@ local function toggleESP()
     atualizarStatus()
 end
 
--- ============ LOCK / UNLOCK (Custom, sem Scriptable) ============
 function lockTarget(newTarget)
     target = newTarget
     locked = true
@@ -1040,7 +1042,6 @@ function lockTarget(newTarget)
         end
     end)
 
-    -- NÃO usa Scriptable! Deixa Custom pra não inverter o analógico
     camera.CameraType = Enum.CameraType.Custom
 
     RunService:UnbindFromRenderStep("EZEK_Cam")
@@ -1076,7 +1077,7 @@ local function toggleLock()
         if t then
             lockTarget(t)
         else
-            print("❌ Nenhum alvo na mira! (players, dummies, NPCs, monstros)")
+            print("❌ Nenhum alvo no centro da tela! Mire no inimigo e tente de novo.")
         end
     end
 end
@@ -1146,8 +1147,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v15.4 (analógico corrigido) pronto!")
+print("✅ AIMLOCK DO EZEK v15.5 (centro da tela + câmera perto) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
+print("🎯 Lock só pega alvo no centro (20°)")
+print("🎥 Câmera aproxima quando inimigo perto")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📱 Botão LOCK/ESP na tela")
-print("⌨️ Q = Lock | E = ESP")
