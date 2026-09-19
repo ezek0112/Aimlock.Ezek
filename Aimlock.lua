@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v15.3 - MOBILE + CONSOLE + CONTROLE
--- R1+R2 = Lock | L1+L2 = ESP | Boneco segue o alvo
+-- AIMLOCK DO EZEK v15.4 - MOBILE + CONSOLE + CONTROLE
+-- R1+R2 = Lock | L1+L2 = ESP | Analógico corrigido
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -40,7 +40,6 @@ local camera = Workspace.CurrentCamera
 -- ============ ESTADO ============
 local locked = false
 local target = nil
-local cameraConnection = nil
 local espEnabled = false
 local espHighlights = {}
 local espLabels = {}
@@ -131,7 +130,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v15.3"
+title.Text = "🎯 AIMLOCK DO EZEK v15.4"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -824,6 +823,7 @@ local function removerHPBarDoAlvo()
     end
 end
 
+-- ============ UPDATE CAMERA (Custom, sem Scriptable) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -857,7 +857,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (CORRIGIDO - BONECO SEGUE O ALVO) ============
+-- ============ UPDATE BODY (BONECO SEGUE O ALVO) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -871,13 +871,11 @@ local function updateBody()
     local part = getAimPart(target)
     if not part then return end
 
-    -- Força AutoRotate OFF em todo frame (Roblox reativa sozinho)
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
         hum.AutoRotate = false
     end
 
-    -- Direção plana (sem Y) pra não inclinar o boneco
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
 
@@ -1023,6 +1021,7 @@ local function toggleESP()
     atualizarStatus()
 end
 
+-- ============ LOCK / UNLOCK (Custom, sem Scriptable) ============
 function lockTarget(newTarget)
     target = newTarget
     locked = true
@@ -1041,12 +1040,12 @@ function lockTarget(newTarget)
         end
     end)
 
-    camera.CameraType = Enum.CameraType.Scriptable
+    -- NÃO usa Scriptable! Deixa Custom pra não inverter o analógico
+    camera.CameraType = Enum.CameraType.Custom
 
-    if cameraConnection then cameraConnection:Disconnect() end
-    cameraConnection = RunService.RenderStepped:Connect(updateCamera)
+    RunService:UnbindFromRenderStep("EZEK_Cam")
+    RunService:BindToRenderStep("EZEK_Cam", Enum.RenderPriority.Camera.Value + 1, updateCamera)
 
-    -- Prioridade ALTA pra rodar depois da câmera e sobrescrever o Roblox
     RunService:UnbindFromRenderStep("EZEK_Body")
     RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Camera.Value - 1, updateBody)
 
@@ -1061,7 +1060,7 @@ function unlockTarget()
     infoBox.Visible = false
     removerHPBarDoAlvo()
 
-    if cameraConnection then cameraConnection:Disconnect() cameraConnection = nil end
+    RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
 
     camera.CameraType = Enum.CameraType.Custom
@@ -1147,7 +1146,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v15.3 (boneco segue alvo) pronto!")
+print("✅ AIMLOCK DO EZEK v15.4 (analógico corrigido) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
 print("📱 Botão LOCK/ESP na tela")
