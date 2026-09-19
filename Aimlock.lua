@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16 - MOBILE + CONSOLE + CONTROLE
--- Lock funciona com QUALQUER câmera do jogo
+-- AIMLOCK DO EZEK v16.1 - MOBILE + CONSOLE + CONTROLE
+-- Lock funciona com QUALQUER câmera + correção do dash
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -39,6 +39,7 @@ local camera = Workspace.CurrentCamera
 
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
+local VELOCIDADE_DASH = 30  -- acima disso = dash (não força rotação)
 
 -- ============ ESTADO ============
 local locked = false
@@ -134,7 +135,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16"
+title.Text = "🎯 AIMLOCK DO EZEK v16.1"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -856,15 +857,14 @@ local function updateCamera()
 
     local camPos = eyePos - dir * DISTANCIA_CAMERA
 
-    -- SOBRESCREVE o CFrame de QUALQUER câmera (Custom, Scriptable, ShiftLock, etc)
     camera.CFrame = CFrame.lookAt(camPos, aimPos)
-    camera.Focus = CFrame.new(aimPos)  -- ESSENCIAL pra funcionar com qualquer câmera
+    camera.Focus = CFrame.new(aimPos)
 
     updateTargetInfo()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (HÍBRIDO - SÓ VIRA QUANDO PARADO) ============
+-- ============ UPDATE BODY (HÍBRIDO + CORREÇÃO DE DASH) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -878,8 +878,14 @@ local function updateBody()
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
 
-    -- SE TIVER ANDANDO, não força rotação (movimento livre)
+    -- SE TIVER ANDANDO com o analógico, não força rotação
     if hum.MoveDirection.Magnitude > 0.1 then
+        return
+    end
+
+    -- SE TIVER EM DASH (velocidade alta), não força rotação
+    local velocidade = myRoot.AssemblyLinearVelocity.Magnitude
+    if velocidade > VELOCIDADE_DASH then
         return
     end
 
@@ -1049,7 +1055,6 @@ function lockTarget(newTarget)
         end
     end)
 
-    -- Salva o CameraType atual do jogo (pra restaurar depois)
     cameraTypeAntigo = camera.CameraType
 
     RunService:UnbindFromRenderStep("EZEK_Cam")
@@ -1072,7 +1077,6 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
 
-    -- Restaura o CameraType original do jogo
     pcall(function()
         if cameraTypeAntigo then
             camera.CameraType = cameraTypeAntigo
@@ -1159,9 +1163,9 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16 (funciona com QUALQUER câmera) pronto!")
+print("✅ AIMLOCK DO EZEK v16.1 (correção de dash) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎥 Sobrescreve qualquer CameraType")
+print("🏃 Dash não buga mais o boneco")
 print("🎯 Lock só no centro (20°)")
-print("🔄 Boneco vira quando parado | Movimento livre quando anda")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
