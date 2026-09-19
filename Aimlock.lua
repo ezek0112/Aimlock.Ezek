@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v15 - MOBILE + CONSOLE + CONTROLE
+-- AIMLOCK DO EZEK v15.1 - MOBILE + CONSOLE + CONTROLE
 -- Lock + ESP otimizado pra mobile/console
 
 -- ============ PROTEÇÃO ============
@@ -131,7 +131,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v15"
+title.Text = "🎯 AIMLOCK DO EZEK v15.1"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -472,7 +472,7 @@ local creditos = Instance.new("TextLabel")
 creditos.Size = UDim2.new(1, 0, 0, 18)
 creditos.Position = UDim2.new(0, 0, 0, 498)
 creditos.BackgroundTransparency = 1
-creditos.Text = "Toque 2x = Lock | R1/R2 = Lock | L1/L2 = ESP"
+creditos.Text = "Botão LOCK/ESP | R1/R2 = Lock | L1/L2 = ESP"
 creditos.TextColor3 = CORES.textoFraco
 creditos.Font = Enum.Font.GothamMedium
 creditos.TextSize = 11
@@ -1075,10 +1075,7 @@ end
 lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
--- ============ INPUTS (TECLADO + TOQUE DUPLO + GAMEPAD) ============
-local ultimoToque = 0
-local toqueDuploDelay = 0.35
-
+-- ============ INPUTS (só teclado + gamepad, sem toque duplo) ============
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
 
@@ -1087,17 +1084,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
         toggleLock()
     elseif input.KeyCode == Enum.KeyCode.E then
         toggleESP()
-    end
-
-    -- Toque duplo na tela (mobile)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        local agora = tick()
-        if agora - ultimoToque < toqueDuploDelay then
-            toggleLock()
-            ultimoToque = 0
-        else
-            ultimoToque = agora
-        end
     end
 
     -- Gamepad (controle Bluetooth)
@@ -1122,8 +1108,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v15 (mobile + console) pronto!")
+print("✅ AIMLOCK DO EZEK v15.1 (mobile + console) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("📱 Toque 2x na tela = Lock")
+print("📱 Botão LOCK/ESP na tela")
 print("🎮 R1/R2 = Lock | L1/L2 = ESP")
 print("⌨️ Q = Lock | E = ESP")
