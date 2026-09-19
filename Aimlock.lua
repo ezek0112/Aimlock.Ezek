@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.3 - MOBILE + CONSOLE + CONTROLE
--- Lock + dash + morte + boss (câmera não buga mais)
+-- AIMLOCK DO EZEK v16.4 - MOBILE + CONSOLE + CONTROLE
+-- Lock estável em PvP | Boss detectado corretamente | Dash + Morte corrigidos
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -40,7 +40,8 @@ local camera = Workspace.CurrentCamera
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
 local VELOCIDADE_DASH = 30
-local RAIO_DETECCAO_BOSS = 50  -- studs
+local RAIO_DETECCAO_BOSS = 50
+local COOLDOWN_BOSS = 1.5
 
 -- ============ ESTADO ============
 local locked = false
@@ -52,9 +53,11 @@ local espUpdateConnection = nil
 local targetHealthESP = nil
 local cameraTypeAntigo = nil
 
--- Detecção de câmera do jogo
 local ultimaMudancaCamera = 0
 local cameraUltimaCFrame = nil
+
+local ultimaDeteccaoBoss = 0
+local bossDetectado = false
 
 local espUltimoScan = 0
 local ESP_SCAN_INTERVALO = 0.5
@@ -140,7 +143,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.3"
+title.Text = "🎯 AIMLOCK DO EZEK v16.4"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -677,48 +680,63 @@ local function getCandidatesCacheado()
     return candidatosCache
 end
 
--- ============ DETECÇÃO DE BOSS ============
+-- ============ DETECÇÃO DE BOSS (COM COOLDOWN) ============
 local function temBossPerto()
     local char = player.Character
     if not char then return false end
     local myRoot = char:FindFirstChild("HumanoidRootPart")
     if not myRoot then return false end
 
+    -- Se detectou boss recentemente, mantém por um tempo (evita liga/desliga)
+    if bossDetectado and (tick() - ultimaDeteccaoBoss) < COOLDOWN_BOSS then
+        return true
+    end
+
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= char then
-            local nome = string.lower(obj.Name)
-            -- Detecta boss pelo nome (adapta pro teu jogo se precisar)
-            if nome:find("boss") or nome:find("raid") or nome:find("elite") 
-               or nome:find("demon") or nome:find("titã") or nome:find("titan") then
-                local objRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
-                if objRoot then
-                    local dist = (objRoot.Position - myRoot.Position).Magnitude
-                    if dist < RAIO_DETECCAO_BOSS then
-                        return true
+            -- IGNORA players (só NPCs/monstros contam como boss)
+            local isPlayer = Players:GetPlayerFromCharacter(obj)
+            if not isPlayer then
+                local nome = string.lower(obj.Name)
+                -- Palavras ESPECÍFICAS de boss (evita falso positivo)
+                if nome:find("boss") or nome:find("raid") or nome:find("worldboss")
+                   or nome:find("dungeonboss") or nome:find("megaboss")
+                   or nome == "demon king" or nome:find("demon king")
+                   or nome:find("demon lord") or nome:find("demonlord") then
+                    local objRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
+                    if objRoot then
+                        local dist = (objRoot.Position - myRoot.Position).Magnitude
+                        if dist < RAIO_DETECCAO_BOSS then
+                            bossDetectado = true
+                            ultimaDeteccaoBoss = tick()
+                            return true
+                        end
                     end
                 end
             end
         end
     end
+
+    bossDetectado = false
     return false
 end
 
--- ============ DETECÇÃO DE CÂMERA DO JOGO ============
+-- ============ DETECÇÃO DE CÂMERA DO JOGO (MENOS SENSÍVEL) ============
 local function jogoControlandoCamera()
     local cfAtual = camera.CFrame
 
     if cameraUltimaCFrame then
         local diff = (cfAtual.Position - cameraUltimaCFrame.Position).Magnitude
-        -- Se a câmera se moveu MUITO entre frames, é o jogo
-        if diff > 8 then
+        -- Threshold MAIOR (20 studs) → só detecta movimento MUITO grande
+        if diff > 20 then
             ultimaMudancaCamera = tick()
         end
     end
 
     cameraUltimaCFrame = cfAtual
 
-    -- Se foi mexida nos últimos 0.4s, considera que o jogo tá controlando
-    if tick() - ultimaMudancaCamera < 0.4 then
+    -- Cooldown MAIOR (1s) → não fica ativando toda hora
+    if tick() - ultimaMudancaCamera < 1 then
         return true
     end
 
@@ -904,15 +922,8 @@ local function updateCamera()
         return
     end
 
-    -- SE TEM BOSS PERTO, não mexe na câmera (deixa o jogo controlar)
-    if temBossPerto() then
-        return
-    end
-
-    -- SE O JOGO TÁ CONTROLANDO A CÂMERA, não mexe
-    if jogoControlandoCamera() then
-        return
-    end
+    if temBossPerto() then return end
+    if jogoControlandoCamera() then return end
 
     local part = getAimPart(target)
     if not part then return end
@@ -934,7 +945,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (HÍBRIDO + DASH + MORTE + BOSS) ============
+-- ============ UPDATE BODY (HÍBRIDO) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -950,21 +961,12 @@ local function updateBody()
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
 
-    -- SE TEM BOSS PERTO, não força rotação (deixa o jogo controlar)
-    if temBossPerto() then
-        return
-    end
+    if temBossPerto() then return end
 
-    -- SE TIVER ANDANDO, não força rotação
-    if hum.MoveDirection.Magnitude > 0.1 then
-        return
-    end
+    if hum.MoveDirection.Magnitude > 0.1 then return end
 
-    -- SE TIVER EM DASH, não força rotação
     local velocidade = myRoot.AssemblyLinearVelocity.Magnitude
-    if velocidade > VELOCIDADE_DASH then
-        return
-    end
+    if velocidade > VELOCIDADE_DASH then return end
 
     local part = getAimPart(target)
     if not part then return end
@@ -1279,10 +1281,11 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.3 pronto!")
+print("✅ AIMLOCK DO EZEK v16.4 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎥 Sobrescreve qualquer CameraType")
 print("🏃 Dash não buga")
 print("💀 Morte/respawn resetado")
 print("👹 Boss detectado → câmera do jogo respeitada")
+print("⚔️ PvP estável (boss com cooldown + câmera menos sensível)")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
