@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v15.5 - MOBILE + CONSOLE + CONTROLE
--- Lock no centro da tela + câmera aproxima quando perto
+-- AIMLOCK DO EZEK v15.7 - MOBILE + CONSOLE + CONTROLE
+-- Câmera FIXA (não aproxima mais) + BodyGyro (sem travar movimento)
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -37,6 +37,9 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
+-- ============ CONFIG ============
+local DISTANCIA_CAMERA = 12  -- distância FIXA da câmera (não muda)
+
 -- ============ ESTADO ============
 local locked = false
 local target = nil
@@ -45,6 +48,10 @@ local espHighlights = {}
 local espLabels = {}
 local espUpdateConnection = nil
 local targetHealthESP = nil
+local bodyGyro = nil
+
+local cameraModeAntigo = player.CameraMode
+local zoomAntigo = player.CameraMaxZoomDistance
 
 local espUltimoScan = 0
 local ESP_SCAN_INTERVALO = 0.5
@@ -130,7 +137,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v15.5"
+title.Text = "🎯 AIMLOCK DO EZEK v15.7"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -540,6 +547,33 @@ local function setAutoRotate(state)
     end)
 end
 
+-- ============ BODYGYRO (VIRAR BONECO SEM TRAVAR MOVIMENTO) ============
+local function criarBodyGyro()
+    local char = player.Character
+    if not char then return end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    if bodyGyro and bodyGyro.Parent then
+        bodyGyro:Destroy()
+    end
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "EZEK_Gyro"
+    bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    bodyGyro.P = 3000
+    bodyGyro.D = 500
+    bodyGyro.CFrame = myRoot.CFrame
+    bodyGyro.Parent = myRoot
+end
+
+local function removerBodyGyro()
+    if bodyGyro and bodyGyro.Parent then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+end
+
 -- ============ GET HEALTH ============
 local function getHealth(model)
     if not model then return nil, nil, nil end
@@ -667,7 +701,7 @@ local function getCandidatesCacheado()
     return candidatosCache
 end
 
--- ============ FIND TARGET (SÓ NO CENTRO DA TELA - 20°) ============
+-- ============ FIND TARGET (SÓ CENTRO - 20°) ============
 local function findTarget()
     local character = player.Character
     if not character then return nil end
@@ -696,7 +730,6 @@ local function findTarget()
         if part then
             local dir = (part.Position - camera.CFrame.Position).Unit
             local ang = math.acos(math.clamp(camera.CFrame.LookVector:Dot(dir), -1, 1))
-            -- SÓ LOCKA SE TIVER NO CENTRO (20 graus)
             if ang < math.rad(20) then
                 return bestTarget
             end
@@ -825,9 +858,17 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ UPDATE CAMERA (CÂMERA APROXIMA QUANDO PERTO) ============
+-- ============ UPDATE CAMERA (DISTÂNCIA FIXA - NÃO APROXIMA) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
+
+    -- FORÇA CameraMode.Classic (desliga Shift Lock do jogo)
+    pcall(function()
+        if player.CameraMode ~= Enum.CameraMode.Classic then
+            player.CameraMode = Enum.CameraMode.Classic
+        end
+    end)
+
     local char = player.Character
     if not char then return end
     local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
@@ -850,9 +891,8 @@ local function updateCamera()
     if dir.Magnitude < 0.1 then return end
     dir = dir.Unit
 
-    local dist = (aimPos - eyePos).Magnitude
-    -- CÂMERA APROXIMA QUANDO PERTO (mín 3, máx 13.2)
-    local camDist = math.clamp(dist * 0.5, 3, 13.2)
+    -- DISTÂNCIA FIXA (não aproxima mais quando perto)
+    local camDist = DISTANCIA_CAMERA
 
     local camPos = eyePos - dir * camDist
     camera.CFrame = CFrame.lookAt(camPos, aimPos)
@@ -860,13 +900,17 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY ============
+-- ============ UPDATE BODY (BODYGYRO) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
     if not char then return end
-    local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
+
+    if not bodyGyro or not bodyGyro.Parent then
+        criarBodyGyro()
+    end
 
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
@@ -874,16 +918,11 @@ local function updateBody()
     local part = getAimPart(target)
     if not part then return end
 
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.AutoRotate = false
-    end
-
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
 
-    if lookDir.Magnitude > 0.1 then
-        myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
+    if lookDir.Magnitude > 0.1 and bodyGyro and bodyGyro.Parent then
+        bodyGyro.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
     end
 end
 
@@ -1040,7 +1079,12 @@ function lockTarget(newTarget)
             hum.AutoRotate = false
             hum.CameraOffset = Vector3.new(0, 0, 0)
         end
+        cameraModeAntigo = player.CameraMode
+        zoomAntigo = player.CameraMaxZoomDistance
+        player.CameraMode = Enum.CameraMode.Classic
     end)
+
+    criarBodyGyro()
 
     camera.CameraType = Enum.CameraType.Custom
 
@@ -1060,9 +1104,15 @@ function unlockTarget()
     lockBtn.BackgroundColor3 = CORES.botao
     infoBox.Visible = false
     removerHPBarDoAlvo()
+    removerBodyGyro()
 
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
+
+    pcall(function()
+        player.CameraMode = cameraModeAntigo or Enum.CameraMode.Classic
+        player.CameraMaxZoomDistance = zoomAntigo or 128
+    end)
 
     camera.CameraType = Enum.CameraType.Custom
     setAutoRotate(true)
@@ -1137,6 +1187,7 @@ player.CharacterRemoving:Connect(function()
     if locked then unlockTarget() end
     camera.CameraType = Enum.CameraType.Custom
     setAutoRotate(true)
+    removerBodyGyro()
 end)
 
 player.CharacterAdded:Connect(function()
@@ -1147,8 +1198,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v15.5 (centro da tela + câmera perto) pronto!")
+print("✅ AIMLOCK DO EZEK v15.7 (câmera FIXA) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("🎯 Lock só pega alvo no centro (20°)")
-print("🎥 Câmera aproxima quando inimigo perto")
+print("🎥 Câmera fixa em " .. DISTANCIA_CAMERA .. " studs (não aproxima)")
+print("🔄 BodyGyro (sem travar movimento)")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
