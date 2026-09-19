@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.2 - MOBILE + CONSOLE + CONTROLE
--- Lock + correção de dash + correção de morte/respawn
+-- AIMLOCK DO EZEK v16.3 - MOBILE + CONSOLE + CONTROLE
+-- Lock + dash + morte + boss (câmera não buga mais)
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -40,6 +40,7 @@ local camera = Workspace.CurrentCamera
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
 local VELOCIDADE_DASH = 30
+local RAIO_DETECCAO_BOSS = 50  -- studs
 
 -- ============ ESTADO ============
 local locked = false
@@ -50,6 +51,10 @@ local espLabels = {}
 local espUpdateConnection = nil
 local targetHealthESP = nil
 local cameraTypeAntigo = nil
+
+-- Detecção de câmera do jogo
+local ultimaMudancaCamera = 0
+local cameraUltimaCFrame = nil
 
 local espUltimoScan = 0
 local ESP_SCAN_INTERVALO = 0.5
@@ -135,7 +140,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.2"
+title.Text = "🎯 AIMLOCK DO EZEK v16.3"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -672,6 +677,54 @@ local function getCandidatesCacheado()
     return candidatosCache
 end
 
+-- ============ DETECÇÃO DE BOSS ============
+local function temBossPerto()
+    local char = player.Character
+    if not char then return false end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return false end
+
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj ~= char then
+            local nome = string.lower(obj.Name)
+            -- Detecta boss pelo nome (adapta pro teu jogo se precisar)
+            if nome:find("boss") or nome:find("raid") or nome:find("elite") 
+               or nome:find("demon") or nome:find("titã") or nome:find("titan") then
+                local objRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
+                if objRoot then
+                    local dist = (objRoot.Position - myRoot.Position).Magnitude
+                    if dist < RAIO_DETECCAO_BOSS then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ============ DETECÇÃO DE CÂMERA DO JOGO ============
+local function jogoControlandoCamera()
+    local cfAtual = camera.CFrame
+
+    if cameraUltimaCFrame then
+        local diff = (cfAtual.Position - cameraUltimaCFrame.Position).Magnitude
+        -- Se a câmera se moveu MUITO entre frames, é o jogo
+        if diff > 8 then
+            ultimaMudancaCamera = tick()
+        end
+    end
+
+    cameraUltimaCFrame = cfAtual
+
+    -- Se foi mexida nos últimos 0.4s, considera que o jogo tá controlando
+    if tick() - ultimaMudancaCamera < 0.4 then
+        return true
+    end
+
+    return false
+end
+
 -- ============ FIND TARGET (SÓ CENTRO - 20°) ============
 local function findTarget()
     local character = player.Character
@@ -829,14 +882,13 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ UPDATE CAMERA (COM VERIFICAÇÃO DE VIDA) ============
+-- ============ UPDATE CAMERA (COM PROTEÇÃO DE BOSS) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
 
     local char = player.Character
     if not char then return end
 
-    -- Verifica se o Humanoid existe e tá vivo
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then
         task.defer(unlockTarget)
@@ -849,6 +901,16 @@ local function updateCamera()
     local hp = getHealth(target)
     if not hp or hp <= 0 then
         task.defer(unlockTarget)
+        return
+    end
+
+    -- SE TEM BOSS PERTO, não mexe na câmera (deixa o jogo controlar)
+    if temBossPerto() then
+        return
+    end
+
+    -- SE O JOGO TÁ CONTROLANDO A CÂMERA, não mexe
+    if jogoControlandoCamera() then
         return
     end
 
@@ -872,7 +934,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (HÍBRIDO + DASH + MORTE) ============
+-- ============ UPDATE BODY (HÍBRIDO + DASH + MORTE + BOSS) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -883,18 +945,22 @@ local function updateBody()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
 
-    -- VERIFICA SE O HUMANOID TÁ VIVO
     if hum.Health <= 0 then return end
 
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
 
-    -- SE TIVER ANDANDO com o analógico, não força rotação
+    -- SE TEM BOSS PERTO, não força rotação (deixa o jogo controlar)
+    if temBossPerto() then
+        return
+    end
+
+    -- SE TIVER ANDANDO, não força rotação
     if hum.MoveDirection.Magnitude > 0.1 then
         return
     end
 
-    -- SE TIVER EM DASH (velocidade alta), não força rotação
+    -- SE TIVER EM DASH, não força rotação
     local velocidade = myRoot.AssemblyLinearVelocity.Magnitude
     if velocidade > VELOCIDADE_DASH then
         return
@@ -1162,14 +1228,11 @@ UserInputService.InputEnded:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2Pressionado = false end
 end)
 
--- ============ MORTE E RESPAWN (CORRIGIDO) ============
+-- ============ MORTE E RESPAWN ============
 player.CharacterRemoving:Connect(function()
-    -- Desliga o lock se tiver ativo
     if locked then
         pcall(function() unlockTarget() end)
     end
-
-    -- Cancela qualquer BindToRenderStep
     pcall(function()
         RunService:UnbindFromRenderStep("EZEK_Cam")
         RunService:UnbindFromRenderStep("EZEK_Body")
@@ -1177,14 +1240,10 @@ player.CharacterRemoving:Connect(function()
 end)
 
 player.CharacterAdded:Connect(function(newChar)
-    -- Espera o novo personagem carregar
     task.wait(0.5)
-
-    -- Garante que o lock tá desligado
     locked = false
     target = nil
 
-    -- Reset visual dos botões
     pcall(function()
         if lockBtn then
             lockBtn.Text = "🔓 LOCK: OFF"
@@ -1195,7 +1254,6 @@ player.CharacterAdded:Connect(function(newChar)
         end
     end)
 
-    -- Espera o Humanoid carregar
     local hum = newChar:WaitForChild("Humanoid", 5)
     local myRoot = newChar:WaitForChild("HumanoidRootPart", 5)
 
@@ -1204,15 +1262,10 @@ player.CharacterAdded:Connect(function(newChar)
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- Espera mais um pouco pra ter certeza
     task.wait(0.5)
 
-    -- Limpa HP bar do alvo se tiver sobrado
-    pcall(function()
-        removerHPBarDoAlvo()
-    end)
+    pcall(function() removerHPBarDoAlvo() end)
 
-    -- Restaura CameraMode
     pcall(function()
         if cameraTypeAntigo then
             camera.CameraType = cameraTypeAntigo
@@ -1220,17 +1273,16 @@ player.CharacterAdded:Connect(function(newChar)
         player.CameraMode = Enum.CameraMode.Classic
     end)
 
-    -- Reset status
     pcall(function() atualizarStatus() end)
 
     print("✅ [EZEK] Personagem respawnou — lock resetado!")
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.2 pronto!")
+print("✅ AIMLOCK DO EZEK v16.3 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎥 Sobrescreve qualquer CameraType")
-print("🏃 Dash não buga mais")
-print("💀 Morte/respawn resetado automaticamente")
-print("🎯 Lock só no centro (20°)")
+print("🏃 Dash não buga")
+print("💀 Morte/respawn resetado")
+print("👹 Boss detectado → câmera do jogo respeitada")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
