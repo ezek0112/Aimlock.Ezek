@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v14 - CORRIGIDO PRA ASSASSINS 2 / PROJECT SLAYERS
--- Lock + ESP otimizado pra mobile
+-- AIMLOCK DO EZEK v15 - MOBILE + CONSOLE + CONTROLE
+-- Lock + ESP otimizado pra mobile/console
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -52,7 +52,6 @@ local ESP_SCAN_INTERVALO = 0.5
 local espUltimaAtualizacaoLabel = 0
 local ESP_LABEL_INTERVALO = 0.15
 
--- Cache de candidatos (pra não varrer Workspace toda hora no findTarget)
 local candidatosCache = {}
 local candidatosCacheTime = 0
 local CANDIDATOS_CACHE_INTERVALO = 0.3
@@ -132,7 +131,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v14"
+title.Text = "🎯 AIMLOCK DO EZEK v15"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -473,7 +472,7 @@ local creditos = Instance.new("TextLabel")
 creditos.Size = UDim2.new(1, 0, 0, 18)
 creditos.Position = UDim2.new(0, 0, 0, 498)
 creditos.BackgroundTransparency = 1
-creditos.Text = "Q = Lock | E = ESP"
+creditos.Text = "Toque 2x = Lock | R1/R2 = Lock | L1/L2 = ESP"
 creditos.TextColor3 = CORES.textoFraco
 creditos.Font = Enum.Font.GothamMedium
 creditos.TextSize = 11
@@ -542,17 +541,15 @@ local function setAutoRotate(state)
     end)
 end
 
--- ============ GET HEALTH (ROBUSTO PRA ASSASSINS 2) ============
+-- ============ GET HEALTH ============
 local function getHealth(model)
     if not model then return nil, nil, nil end
 
-    -- 1) Humanoid
     local hum = model:FindFirstChildOfClass("Humanoid")
     if hum and hum.Health > 0 then
         return hum.Health, hum.MaxHealth, "Humanoid"
     end
 
-    -- 2) Attributes (variações)
     local atributos = {"Health", "HP", "health", "CurrentHealth", "hp"}
     for _, nome in ipairs(atributos) do
         local v = model:GetAttribute(nome)
@@ -565,7 +562,6 @@ local function getHealth(model)
         end
     end
 
-    -- 3) NumberValue (recursivo dentro do model)
     for _, nome in ipairs({"Health", "HP", "health"}) do
         local hpVal = model:FindFirstChild(nome, true)
         if hpVal and hpVal:IsA("NumberValue") then
@@ -616,23 +612,18 @@ local function isValidTarget(model)
     if model == player.Character then return false end
     if not model:IsA("Model") then return false end
 
-    -- NÃO filtra por Tool nem por ser player (era o bug principal)
     local hp = getHealth(model)
     if not hp or hp <= 0 then return false end
     if not getAimPart(model) then return false end
-
-    -- Evita pegar partes soltas tipo acessórios
     if #model:GetChildren() < 2 then return false end
 
     return true
 end
 
--- ============ COLETAR CANDIDATOS (PROFUNDIDADE 6) ============
 local function getCandidates()
     local lista = {}
     local vistos = {}
 
-    -- Players
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             local mesmoTime = false
@@ -649,7 +640,6 @@ local function getCandidates()
         end
     end
 
-    -- NPCs / monstros (recursão até 6 níveis)
     local function procurar(pasta, profundidade)
         if profundidade > 6 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
@@ -669,7 +659,6 @@ local function getCandidates()
     return lista
 end
 
--- Cache de candidatos
 local function getCandidatesCacheado()
     local agora = tick()
     if agora - candidatosCacheTime >= CANDIDATOS_CACHE_INTERVALO then
@@ -679,7 +668,6 @@ local function getCandidatesCacheado()
     return candidatosCache
 end
 
--- ============ FIND TARGET (ÂNGULO 75°) ============
 local function findTarget()
     local character = player.Character
     if not character then return nil end
@@ -836,7 +824,6 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ UPDATE CAMERA (DISTÂNCIA DINÂMICA) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -870,7 +857,6 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (RENDER STEP PRA GRUDAR) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -891,7 +877,6 @@ local function updateBody()
     end
 end
 
--- ============ ESP ============
 local function createESP(model)
     if espHighlights[model] then return end
     local root = getAimPart(model)
@@ -1029,7 +1014,6 @@ local function toggleESP()
     atualizarStatus()
 end
 
--- ============ LOCK / UNLOCK (COM BIND TO RENDER STEP) ============
 function lockTarget(newTarget)
     target = newTarget
     locked = true
@@ -1091,10 +1075,37 @@ end
 lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
+-- ============ INPUTS (TECLADO + TOQUE DUPLO + GAMEPAD) ============
+local ultimoToque = 0
+local toqueDuploDelay = 0.35
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-    if input.KeyCode == Enum.KeyCode.Q then toggleLock()
-    elseif input.KeyCode == Enum.KeyCode.E then toggleESP() end
+
+    -- Teclado (PC)
+    if input.KeyCode == Enum.KeyCode.Q then
+        toggleLock()
+    elseif input.KeyCode == Enum.KeyCode.E then
+        toggleESP()
+    end
+
+    -- Toque duplo na tela (mobile)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        local agora = tick()
+        if agora - ultimoToque < toqueDuploDelay then
+            toggleLock()
+            ultimoToque = 0
+        else
+            ultimoToque = agora
+        end
+    end
+
+    -- Gamepad (controle Bluetooth)
+    if input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2 then
+        toggleLock()
+    elseif input.KeyCode == Enum.KeyCode.ButtonL1 or input.KeyCode == Enum.KeyCode.ButtonL2 then
+        toggleESP()
+    end
 end)
 
 player.CharacterRemoving:Connect(function()
@@ -1111,6 +1122,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v14 (Assassins 2 ready!) pronto!")
+print("✅ AIMLOCK DO EZEK v15 (mobile + console) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
+print("📱 Toque 2x na tela = Lock")
+print("🎮 R1/R2 = Lock | L1/L2 = ESP")
 print("⌨️ Q = Lock | E = ESP")
