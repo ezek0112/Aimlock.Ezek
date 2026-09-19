@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.1 - MOBILE + CONSOLE + CONTROLE
--- Lock funciona com QUALQUER câmera + correção do dash
+-- AIMLOCK DO EZEK v16.2 - MOBILE + CONSOLE + CONTROLE
+-- Lock + correção de dash + correção de morte/respawn
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -39,7 +39,7 @@ local camera = Workspace.CurrentCamera
 
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
-local VELOCIDADE_DASH = 30  -- acima disso = dash (não força rotação)
+local VELOCIDADE_DASH = 30
 
 -- ============ ESTADO ============
 local locked = false
@@ -135,7 +135,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.1"
+title.Text = "🎯 AIMLOCK DO EZEK v16.2"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -829,12 +829,20 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ UPDATE CAMERA (SOBRESCREVE QUALQUER CÂMERA) ============
+-- ============ UPDATE CAMERA (COM VERIFICAÇÃO DE VIDA) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
 
     local char = player.Character
     if not char then return end
+
+    -- Verifica se o Humanoid existe e tá vivo
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
+        task.defer(unlockTarget)
+        return
+    end
+
     local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
     if not myRoot then return end
 
@@ -864,7 +872,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (HÍBRIDO + CORREÇÃO DE DASH) ============
+-- ============ UPDATE BODY (HÍBRIDO + DASH + MORTE) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -874,6 +882,9 @@ local function updateBody()
 
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
+
+    -- VERIFICA SE O HUMANOID TÁ VIVO
+    if hum.Health <= 0 then return end
 
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
@@ -1151,21 +1162,75 @@ UserInputService.InputEnded:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2Pressionado = false end
 end)
 
+-- ============ MORTE E RESPAWN (CORRIGIDO) ============
 player.CharacterRemoving:Connect(function()
-    if locked then unlockTarget() end
-    setAutoRotate(true)
+    -- Desliga o lock se tiver ativo
+    if locked then
+        pcall(function() unlockTarget() end)
+    end
+
+    -- Cancela qualquer BindToRenderStep
+    pcall(function()
+        RunService:UnbindFromRenderStep("EZEK_Cam")
+        RunService:UnbindFromRenderStep("EZEK_Body")
+    end)
 end)
 
-player.CharacterAdded:Connect(function()
-    task.wait(1)
-    if locked then unlockTarget() end
-    setAutoRotate(true)
+player.CharacterAdded:Connect(function(newChar)
+    -- Espera o novo personagem carregar
+    task.wait(0.5)
+
+    -- Garante que o lock tá desligado
+    locked = false
+    target = nil
+
+    -- Reset visual dos botões
+    pcall(function()
+        if lockBtn then
+            lockBtn.Text = "🔓 LOCK: OFF"
+            lockBtn.BackgroundColor3 = CORES.botao
+        end
+        if infoBox then
+            infoBox.Visible = false
+        end
+    end)
+
+    -- Espera o Humanoid carregar
+    local hum = newChar:WaitForChild("Humanoid", 5)
+    local myRoot = newChar:WaitForChild("HumanoidRootPart", 5)
+
+    if hum then
+        hum.AutoRotate = true
+        hum.CameraOffset = Vector3.new(0, 0, 0)
+    end
+
+    -- Espera mais um pouco pra ter certeza
+    task.wait(0.5)
+
+    -- Limpa HP bar do alvo se tiver sobrado
+    pcall(function()
+        removerHPBarDoAlvo()
+    end)
+
+    -- Restaura CameraMode
+    pcall(function()
+        if cameraTypeAntigo then
+            camera.CameraType = cameraTypeAntigo
+        end
+        player.CameraMode = Enum.CameraMode.Classic
+    end)
+
+    -- Reset status
+    pcall(function() atualizarStatus() end)
+
+    print("✅ [EZEK] Personagem respawnou — lock resetado!")
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.1 (correção de dash) pronto!")
+print("✅ AIMLOCK DO EZEK v16.2 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎥 Sobrescreve qualquer CameraType")
-print("🏃 Dash não buga mais o boneco")
+print("🏃 Dash não buga mais")
+print("💀 Morte/respawn resetado automaticamente")
 print("🎯 Lock só no centro (20°)")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
