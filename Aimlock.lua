@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v15.1 - MOBILE + CONSOLE + CONTROLE
--- Lock + ESP otimizado pra mobile/console
+-- AIMLOCK DO EZEK v15.2 - MOBILE + CONSOLE + CONTROLE
+-- R1+R2 = Lock | L1+L2 = ESP
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -131,7 +131,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v15.1"
+title.Text = "🎯 AIMLOCK DO EZEK v15.2"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -472,7 +472,7 @@ local creditos = Instance.new("TextLabel")
 creditos.Size = UDim2.new(1, 0, 0, 18)
 creditos.Position = UDim2.new(0, 0, 0, 498)
 creditos.BackgroundTransparency = 1
-creditos.Text = "Botão LOCK/ESP | R1/R2 = Lock | L1/L2 = ESP"
+creditos.Text = "R1+R2 = Lock | L1+L2 = ESP"
 creditos.TextColor3 = CORES.textoFraco
 creditos.Font = Enum.Font.GothamMedium
 creditos.TextSize = 11
@@ -1075,7 +1075,16 @@ end
 lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
--- ============ INPUTS (só teclado + gamepad, sem toque duplo) ============
+-- ============ INPUTS (R1+R2 = Lock | L1+L2 = ESP) ============
+local r1Pressionado = false
+local r2Pressionado = false
+local l1Pressionado = false
+local l2Pressionado = false
+
+local ultimoToggleLock = 0
+local ultimoToggleESP = 0
+local comboCooldown = 0.5
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
 
@@ -1086,12 +1095,36 @@ UserInputService.InputBegan:Connect(function(input, gp)
         toggleESP()
     end
 
-    -- Gamepad (controle Bluetooth)
-    if input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2 then
-        toggleLock()
-    elseif input.KeyCode == Enum.KeyCode.ButtonL1 or input.KeyCode == Enum.KeyCode.ButtonL2 then
-        toggleESP()
+    -- Marca os botões do controle como pressionados
+    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1Pressionado = true end
+    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2Pressionado = true end
+    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1Pressionado = true end
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2Pressionado = true end
+
+    -- R1 + R2 juntos = LOCK
+    if r1Pressionado and r2Pressionado then
+        local agora = tick()
+        if agora - ultimoToggleLock > comboCooldown then
+            toggleLock()
+            ultimoToggleLock = agora
+        end
     end
+
+    -- L1 + L2 juntos = ESP
+    if l1Pressionado and l2Pressionado then
+        local agora = tick()
+        if agora - ultimoToggleESP > comboCooldown then
+            toggleESP()
+            ultimoToggleESP = agora
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gp)
+    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1Pressionado = false end
+    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2Pressionado = false end
+    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1Pressionado = false end
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2Pressionado = false end
 end)
 
 player.CharacterRemoving:Connect(function()
@@ -1108,8 +1141,8 @@ player.CharacterAdded:Connect(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v15.1 (mobile + console) pronto!")
+print("✅ AIMLOCK DO EZEK v15.2 (mobile + console) pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
+print("🎮 R1+R2 = Lock | L1+L2 = ESP")
 print("📱 Botão LOCK/ESP na tela")
-print("🎮 R1/R2 = Lock | L1/L2 = ESP")
 print("⌨️ Q = Lock | E = ESP")
