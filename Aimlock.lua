@@ -1,6 +1,6 @@
--- AIMLOCK DO EZEK v16.10 - MOBILE + CONSOLE + CONTROLE
+-- AIMLOCK DO EZEK v16.11 - MOBILE + CONSOLE + CONTROLE
 -- Câmera segue o player | Anda pros lados normal | Mira no alvo
--- CORRIGIDO: não trava mais o movimento, não buga com animação de boss
+-- CORRIGIDO: câmera não trava mais após morrer/respawnar
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -37,6 +37,13 @@ local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+
+-- 🔥 Mantém a referência da câmera sempre atualizada (respawn troca a ref)
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    if Workspace.CurrentCamera then
+        camera = Workspace.CurrentCamera
+    end
+end)
 
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
@@ -136,7 +143,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.10"
+title.Text = "🎯 AIMLOCK DO EZEK v16.11"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -833,7 +840,7 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ DETECÇÃO DE STUN (SÓ QUANDO PERDE CONTROLE REAL) ============
+-- ============ DETECÇÃO DE STUN ============
 local ultimoHitTime = 0
 local vidaAnterior = 100
 local HIT_JANELA = 0.4
@@ -841,7 +848,6 @@ local HIT_JANELA = 0.4
 local function estaSobEfeitoDeSkill(char, hum)
     if not char or not hum then return true end
 
-    -- Só considera stun REAL quando o Roblox tira o controle do player
     local estado = hum:GetState()
     if estado == Enum.HumanoidStateType.Physics
        or estado == Enum.HumanoidStateType.Ragdoll
@@ -850,7 +856,6 @@ local function estaSobEfeitoDeSkill(char, hum)
         return true
     end
 
-    -- Atributos de stun comuns em jogos do Roblox
     local attrs = {"Stunned","Stun","Knocked","Knockback","Frozen","Grabbed",
                    "Staggered","Paralyzed"}
     for _, nome in ipairs(attrs) do
@@ -859,7 +864,6 @@ local function estaSobEfeitoDeSkill(char, hum)
         end
     end
 
-    -- Tomou hit recente
     if tick() - ultimoHitTime < HIT_JANELA then
         return true
     end
@@ -867,7 +871,6 @@ local function estaSobEfeitoDeSkill(char, hum)
     return false
 end
 
--- Monitor de HP pra detectar hit recente
 task.spawn(function()
     while task.wait(0.05) do
         local char = player.Character
@@ -881,15 +884,20 @@ task.spawn(function()
     end
 end)
 
--- ============ FORÇA ORIENTAÇÃO (compatibilidade) ============
+-- ============ FORÇA ORIENTAÇÃO ============
 local function forcarOrientacao()
     return
 end
 
--- ============ UPDATE CAMERA (suave, não briga com engine) ============
+-- ============ UPDATE CAMERA ============
 local ultimaForcadaCamera = 0
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
+
+    -- 🔥 Se a ref da câmera mudou (respawn), atualiza
+    if Workspace.CurrentCamera and camera ~= Workspace.CurrentCamera then
+        camera = Workspace.CurrentCamera
+    end
 
     local char = player.Character
     if not char then return end
@@ -912,7 +920,6 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- 🔥 Só força Scriptable 1x a cada 0.5s (não brigar com engine)
     local agora = tick()
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         if agora - ultimaForcadaCamera > 0.5 then
@@ -934,7 +941,6 @@ local function updateCamera()
     local camPos = eyePos - dir * DISTANCIA_CAMERA
     local cfAlvo = CFrame.lookAt(camPos, aimPos)
 
-    -- 🔥 Lerp suave pra não dar tranco
     camera.CFrame = camera.CFrame:Lerp(cfAlvo, 0.4)
     camera.Focus = CFrame.new(aimPos)
 
@@ -942,7 +948,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (VERSÃO FINAL ANTI-TORTO) ============
+-- ============ UPDATE BODY ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -954,7 +960,6 @@ local function updateBody()
     if not hum then return end
     if hum.Health <= 0 then return end
 
-    -- 🔥 1. Stun/hit → solta TUDO e devolve controle
     if estaSobEfeitoDeSkill(char, hum) then
         if hum.AutoRotate ~= true then
             hum.AutoRotate = true
@@ -968,8 +973,6 @@ local function updateBody()
     local part = getAimPart(target)
     if not part then return end
 
-    -- 🔥 2. SE ANDANDO → não interfere em NADA
-    -- Deixa o Roblox cuidar 100% do movimento e rotação
     local moveDir = hum.MoveDirection
     if moveDir.Magnitude > 0.1 then
         if hum.AutoRotate ~= true then
@@ -978,7 +981,6 @@ local function updateBody()
         return
     end
 
-    -- 🔥 3. PARADO → gira pro alvo suavemente
     if hum.AutoRotate ~= false then
         hum.AutoRotate = false
     end
@@ -1179,7 +1181,10 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Body")
 
     pcall(function()
-        camera.CameraType = Enum.CameraType.Custom
+        if Workspace.CurrentCamera then
+            camera = Workspace.CurrentCamera
+            camera.CameraType = Enum.CameraType.Custom
+        end
         if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
             camera.CameraType = cameraTypeAntigo
         end
@@ -1188,7 +1193,6 @@ function unlockTarget()
         end
     end)
 
-    -- 🔥 Garante que AutoRotate volta 100%
     pcall(function()
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1197,7 +1201,6 @@ function unlockTarget()
         end
     end)
 
-    -- Reseta orientação do HRP baseado no camera look
     pcall(function()
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -1301,6 +1304,14 @@ player.CharacterRemoving:Connect(function()
         RunService:UnbindFromRenderStep("EZEK_Body")
     end)
 
+    -- 🔥 Devolve câmera pro Roblox IMEDIATAMENTE
+    pcall(function()
+        if Workspace.CurrentCamera then
+            Workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        end
+        player.CameraMode = Enum.CameraMode.Classic
+    end)
+
     pcall(function()
         if lockBtn then
             lockBtn.Text = "🔓 LOCK: OFF"
@@ -1313,21 +1324,24 @@ player.CharacterRemoving:Connect(function()
 
     pcall(function() removerHPBarDoAlvo() end)
 
-    pcall(function()
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.AutoRotate = true
-            hum.CameraOffset = Vector3.new(0, 0, 0)
-        end
-    end)
-
-    print("💀 [EZEK] Morreu — lock resetado!")
+    print("💀 [EZEK] Morreu — lock e câmera resetados!")
 end)
 
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     locked = false
     target = nil
+
+    -- 🔥 Atualiza referência da câmera (respawn cria uma nova)
+    if Workspace.CurrentCamera then
+        camera = Workspace.CurrentCamera
+    end
+
+    -- 🔥 Garante que a câmera volta pro Roblox controlar
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Custom
+        player.CameraMode = Enum.CameraMode.Classic
+    end)
 
     pcall(function()
         if lockBtn then
@@ -1350,21 +1364,17 @@ player.CharacterAdded:Connect(function(newChar)
 
     pcall(function() removerHPBarDoAlvo() end)
 
-    pcall(function()
-        camera.CameraType = Enum.CameraType.Custom
-        player.CameraMode = Enum.CameraMode.Classic
-    end)
-
     pcall(function() atualizarStatus() end)
 
-    print("✅ [EZEK] Personagem respawnou — lock resetado!")
+    print("✅ [EZEK] Personagem respawnou — câmera resetada!")
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.10 pronto!")
+print("✅ AIMLOCK DO EZEK v16.11 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🚶 Anda normal — script não interfere no movimento")
 print("🎯 Para → gira pro alvo automaticamente")
 print("🛡️ Stun/hit do boss → solta controle e devolve")
+print("📷 Câmera reseta corretamente após morte/respawn")
 print("💀 Morte/respawn resetado")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
