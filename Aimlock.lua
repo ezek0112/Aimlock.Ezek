@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.8 - MOBILE + CONSOLE + CONTROLE
--- Câmera segue o player | Anda pros lados normal | Mira no alvo
+-- AIMLOCK DO EZEK v16.9 - MOBILE + CONSOLE + CONTROLE
+-- Corpo E câmera seguem juntos | Anda normal | Mira no alvo
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -135,7 +135,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.8"
+title.Text = "🎯 AIMLOCK DO EZEK v16.9"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -832,7 +832,7 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ FORÇA ORIENTAÇÃO (visual) ============
+-- ============ FORÇA ORIENTAÇÃO (rotação apenas) ============
 local function forcarOrientacao()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -845,8 +845,10 @@ local function forcarOrientacao()
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
     if lookDir.Magnitude > 0.1 then
-        local atual = myRoot.CFrame
-        myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
+        local posAtual = myRoot.CFrame.Position
+        local novaRot = CFrame.lookAt(posAtual, posAtual + lookDir.Unit)
+        -- Só rotação, preserva posição
+        myRoot.CFrame = CFrame.new(posAtual) * (novaRot - novaRot.Position)
     end
 end
 
@@ -875,7 +877,6 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- Scriptable pra controlar 100% a câmera
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
@@ -883,7 +884,7 @@ local function updateCamera()
     local aimPos = part.Position
     if part.Name == "Head" then aimPos = aimPos + Vector3.new(0, -0.3, 0) end
 
-    -- Câmera SEMPRE atrás do player (segue ele andando) olhando o alvo
+    -- Câmera sempre atrás do player olhando o alvo (segue ele andando)
     local eyePos = myRoot.Position + Vector3.new(0, 3.5, 0)
     local dir = aimPos - eyePos
     if dir.Magnitude < 0.1 then return end
@@ -898,7 +899,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (anda pros lados normal — só gira visual) ============
+-- ============ UPDATE BODY (corpo segue a câmera, anda normal) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -918,12 +919,15 @@ local function updateBody()
 
     hum.AutoRotate = false
 
+    -- Só gira o corpo pro alvo. Preserva a posição EXATA (não trava o andar).
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
 
     if lookDir.Magnitude > 0.1 then
-        local atual = myRoot.CFrame
-        myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
+        local posAtual = myRoot.CFrame.Position
+        local novaRot = CFrame.lookAt(posAtual, posAtual + lookDir.Unit)
+        -- Só aplica a rotação, mantém a posição intacta
+        myRoot.CFrame = CFrame.new(posAtual) * (novaRot - novaRot.Position)
     end
 end
 
@@ -1086,11 +1090,9 @@ function lockTarget(newTarget)
         end
     end)
 
-    -- Guarda configs antigas pra devolver no unlock
     cameraTypeAntigo = camera.CameraType
     cameraModeAntigo = player.CameraMode
 
-    -- Scriptable pra controlar 100% a câmera (atrás do player olhando alvo)
     camera.CameraType = Enum.CameraType.Scriptable
 
     forcarOrientacao()
@@ -1116,7 +1118,6 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Body")
 
     pcall(function()
-        -- Devolve pro controle do Roblox (follow padrão)
         camera.CameraType = Enum.CameraType.Custom
         if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
             camera.CameraType = cameraTypeAntigo
@@ -1159,18 +1160,8 @@ local comboCooldown = 0.8
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
 
-    if locked then
-        if input.KeyCode == Enum.KeyCode.ButtonX
-           or input.KeyCode == Enum.KeyCode.ButtonA
-           or input.KeyCode == Enum.KeyCode.LeftShift
-           or input.KeyCode == Enum.KeyCode.Q
-           or input.KeyCode == Enum.KeyCode.ButtonR1
-           or input.KeyCode == Enum.KeyCode.ButtonR2
-           or input.KeyCode == Enum.KeyCode.ButtonL1
-           or input.KeyCode == Enum.KeyCode.ButtonL2 then
-            forcarOrientacao()
-        end
-    end
+    -- NÃO força orientação nos inputs (deixa o Roblox mover o boneco)
+    -- O updateBody já cuida da rotação todo frame.
 
     if input.KeyCode == Enum.KeyCode.Q then
         toggleLock()
@@ -1277,9 +1268,8 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.8 pronto!")
+print("✅ AIMLOCK DO EZEK v16.9 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("🎥 Câmera atrás do player, seguindo ele + olhando o alvo")
-print("🚶 Anda pra frente/lados/trás normalmente")
+print("🎥 Câmera E corpo seguem juntos — anda normal com lock")
 print("💀 Morte/respawn resetado")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
