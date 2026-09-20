@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.1 - CORPO SEGUE CÂMERA + DASH FUNCIONANDO
+-- AIMLOCK DO EZEK v18.2 - DASH FUNCIONANDO + SEM FANTASMA
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -64,15 +64,49 @@ local function estaStunado()
     return dif >= 0 and dif < STUN_DURACAO
 end
 
--- ============ MATA ALIGN MOVERS (VOLTOU PRA v17.8) ============
+-- ============ MATA MOVERS (INTELIGENTE: MATA FANTASMA, PRESERVA DASH) ============
+local moverAges = {}
+
 local function matarMovers()
     local char = player.Character
     if not char then return end
+    local agora = tick()
+    local vistos = {}
+    
     for _, obj in ipairs(char:GetDescendants()) do
         if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")
            or obj:IsA("BodyGyro") or obj:IsA("BodyPosition")
-           or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") then
-            pcall(function() obj:Destroy() end)
+           or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity")
+           or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
+            
+            vistos[obj] = true
+            
+            if not moverAges[obj] then
+                moverAges[obj] = agora
+            end
+            
+            local idade = agora - moverAges[obj]
+            
+            if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
+                -- 🔥 LinearVelocity: só mata se for ANTIGO (fantasma)
+                if idade > 0.5 then
+                    pcall(function()
+                        if obj.Enabled then obj.Enabled = false end
+                        obj:Destroy()
+                    end)
+                    moverAges[obj] = nil
+                end
+            else
+                -- Outros movers: mata sempre (v17.8)
+                pcall(function() obj:Destroy() end)
+                moverAges[obj] = nil
+            end
+        end
+    end
+    
+    for obj, _ in pairs(moverAges) do
+        if not vistos[obj] or not obj.Parent then
+            moverAges[obj] = nil
         end
     end
 end
@@ -174,7 +208,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.1"
+title.Text = "🎯 EZEK v18.2"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1060,6 +1094,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.1!")
-print("📐 Debug de ângulo ativo no painel")
+print("✅ AIMLOCK DO EZEK v18.2!")
+print("🔥 Corpo segue CÂMERA + Dash funcionando")
+print("💀 Fantasma de kill é removido automaticamente")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
