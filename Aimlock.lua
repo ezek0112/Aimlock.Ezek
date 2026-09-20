@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v17.5 - RESET FORÇADO PÓS-MORTE
+-- AIMLOCK DO EZEK v17.6 - RESET PÓS-MORTE SEM AUTO-SABOTAGEM
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -47,6 +47,7 @@ local HIT_JANELA = 0.6
 local STUN_DURACAO = 1.5
 local espUltimoScan = 0
 local espUltimaLabel = 0
+local DEVE_RESETAR_ATE = 0   -- 🔥 MOVIDA PRO INÍCIO
 
 -- ============ DETECÇÃO VIA Last_Stunned ============
 local function estaStunado()
@@ -166,7 +167,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v17.5"
+title.Text = "🎯 EZEK v17.6"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -624,6 +625,8 @@ end
 -- ============ UPDATE CÂMERA ============
 local ultimaForcada = 0
 local function updateCamera()
+    -- 🔥 BLOQUEIA durante janela pós-morte (não deixa o script se sabotar)
+    if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
     if Workspace.CurrentCamera and camera ~= Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
     local char = player.Character
@@ -666,6 +669,8 @@ end
 
 -- ============ UPDATE CORPO ============
 local function updateBody()
+    -- 🔥 BLOQUEIA durante janela pós-morte
+    if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
     local char = player.Character
     if not char then return end
@@ -891,6 +896,7 @@ end)
 
 -- ============ MORTE E RESPAWN ============
 player.CharacterRemoving:Connect(function()
+    DEVE_RESETAR_ATE = tick() + 5  -- 🔥 ATIVA JANELA
     locked = false
     target = nil
     pcall(function()
@@ -909,6 +915,7 @@ player.CharacterRemoving:Connect(function()
 end)
 
 player.CharacterAdded:Connect(function(newChar)
+    DEVE_RESETAR_ATE = tick() + 5  -- 🔥 RENOVA JANELA
     task.wait(0.3)
     locked = false
     target = nil
@@ -925,24 +932,19 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 RESET FORÇADO CONTÍNUO PÓS-MORTE (O QUE RESOLVE)
+-- 🔥 RESET FORÇADO CONTÍNUO PÓS-MORTE
 -- ══════════════════════════════════════════════════
-local DEVE_RESETAR_ATE = 0
-
 task.spawn(function()
     while task.wait(0.1) do
         local char = player.Character
         if char then
             local hum = char:FindFirstChildOfClass("Humanoid")
-            -- Detecta morte
             if hum and hum.Health <= 0 then
                 DEVE_RESETAR_ATE = tick() + 5
             end
         end
         
-        -- Enquanto tiver na janela pós-morte, força tudo
         if tick() < DEVE_RESETAR_ATE then
-            -- Força câmera Custom
             pcall(function()
                 local cam = Workspace.CurrentCamera
                 if cam and cam.CameraType == Enum.CameraType.Scriptable then
@@ -950,7 +952,6 @@ task.spawn(function()
                 end
             end)
             
-            -- Força AutoRotate true + CameraOffset 0
             pcall(function()
                 local char = player.Character
                 if char then
@@ -964,7 +965,6 @@ task.spawn(function()
                 end
             end)
             
-            -- Desliga lock
             if locked then
                 locked = false
                 target = nil
@@ -986,7 +986,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v17.5!")
-print("🔥 Reset forçado contínuo pós-morte ATIVO")
-print("🎮 Q = Lock | E = ESP")
-print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("✅ AIMLOCK DO EZEK v17.6!")
+print("🔥 updateCamera/updateBody BLOQUEADOS durante janela pós-morte")
+print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
