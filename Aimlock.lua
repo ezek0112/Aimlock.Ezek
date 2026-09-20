@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v17.8 - CÂMERA SEGUE O BONECO
+-- AIMLOCK DO EZEK v17.9 - CORPO SEGUE A CÂMERA
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -49,6 +49,10 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
+-- 🔥 Expõe pra debug externo conseguir ler
+_G.EZEK_LOCKED = false
+_G.EZEK_TARGET = nil
+
 -- ============ DETECÇÃO VIA Last_Stunned ============
 local function estaStunado()
     local ultimoStun = player:GetAttribute("Last_Stunned")
@@ -57,20 +61,38 @@ local function estaStunado()
     return dif >= 0 and dif < STUN_DURACAO
 end
 
--- ============ MATA ALIGN MOVERS ============
+-- ============ MATA ALIGN MOVERS (VERSÃO AGRESSIVA) ============
 local function matarMovers()
     local char = player.Character
     if not char then return end
     for _, obj in ipairs(char:GetDescendants()) do
         if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")
            or obj:IsA("BodyGyro") or obj:IsA("BodyPosition")
-           or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") then
-            pcall(function() obj:Destroy() end)
+           or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity")
+           or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
+            pcall(function()
+                if obj.Enabled then obj.Enabled = false end
+                obj:Destroy()
+            end)
+        end
+    end
+    -- 🔥 Procura em pastas/modelos do char também
+    for _, pasta in ipairs(char:GetChildren()) do
+        if pasta:IsA("Folder") or pasta:IsA("Model") then
+            for _, obj in ipairs(pasta:GetDescendants()) do
+                if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
+                    pcall(function()
+                        obj.Enabled = false
+                        obj:Destroy()
+                    end)
+                end
+            end
         end
     end
 end
 
-task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
+-- 🔥 Loop mais rápido: 0.03s
+task.spawn(function() while task.wait(0.03) do pcall(matarMovers) end end)
 
 -- ============ MONITOR DE HIT ============
 task.spawn(function()
@@ -167,7 +189,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v17.8"
+title.Text = "🎯 EZEK v17.9"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -622,16 +644,14 @@ local function resetarCamera()
     end)
 end
 
--- ============ UPDATE CÂMERA (VERSÃO FINAL - SEGUE O BONECO) ============
+-- ============ UPDATE CÂMERA ============
 local function updateCamera()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
     
-    -- 🔥 Sempre pega a câmera atual
     camera = Workspace.CurrentCamera
     if not camera then return end
     
-    -- 🔥 Pega o personagem ATUAL
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -642,12 +662,10 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- 🔥 PEGA POSIÇÃO ATUALIZADA DO BONECO
     local bonecoPos = myRoot.Position
     local alvoPos = part.Position
     if part.Name == "Head" then alvoPos = alvoPos + Vector3.new(0, -0.3, 0) end
 
-    -- 🔥 CALCULA A CÂMERA EM TEMPO REAL
     local eyePos = bonecoPos + Vector3.new(0, 3.5, 0)
     local dir = alvoPos - eyePos
     if dir.Magnitude < 0.1 then return end
@@ -655,12 +673,10 @@ local function updateCamera()
 
     local camPos = eyePos - dir * DISTANCIA_CAMERA
     
-    -- 🔥 FORÇA SCRIPTABLE SEMPRE
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
     
-    -- 🔥 SETA CÂMERA DIRETO (segue o boneco sem lerp)
     camera.CFrame = CFrame.lookAt(camPos, alvoPos)
     camera.Focus = CFrame.new(alvoPos)
     
@@ -668,7 +684,7 @@ local function updateCamera()
     atualizarHPBar()
 end
 
--- ============ UPDATE CORPO ============
+-- ============ UPDATE CORPO (SEGUE A CÂMERA) ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -677,23 +693,32 @@ local function updateBody()
     local myRoot = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not myRoot or not hum or hum.Health <= 0 then return end
+    
+    -- 🔥 Mata movers TODA FRAME durante lock
     matarMovers()
+    
     if estaStunado() or tick() - ultimoHitTime < HIT_JANELA then
         if hum.AutoRotate ~= true then hum.AutoRotate = true end
         return
     end
-    local part = getAimPart(target)
-    if not part then return end
-    if hum.MoveDirection.Magnitude > 0.1 then
-        if hum.AutoRotate ~= true then hum.AutoRotate = true end
-        return
-    end
+    
+    -- 🔥 Força AutoRotate false toda frame
     if hum.AutoRotate ~= false then hum.AutoRotate = false end
-    local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
-    local lookDir = flat - myRoot.Position
-    if lookDir.Magnitude > 0.5 then
-        myRoot.CFrame = myRoot.CFrame:Lerp(CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit), 0.15)
-    end
+    
+    -- 🔥 Agora o corpo segue a DIREÇÃO DA CÂMERA
+    camera = Workspace.CurrentCamera
+    if not camera then return end
+    
+    local camLook = camera.CFrame.LookVector
+    local flat = Vector3.new(camLook.X, 0, camLook.Z)
+    if flat.Magnitude < 0.01 then return end
+    flat = flat.Unit
+    
+    local destino = myRoot.Position + flat
+    myRoot.CFrame = myRoot.CFrame:Lerp(
+        CFrame.lookAt(myRoot.Position, destino),
+        0.25
+    )
 end
 
 -- ============ ESP ============
@@ -813,6 +838,8 @@ function lockTarget(novoAlvo)
     matarMovers()
     target = novoAlvo
     locked = true
+    _G.EZEK_LOCKED = true
+    _G.EZEK_TARGET = novoAlvo
     lockBtn.Text = "🔒 LOCK: ON"
     lockBtn.BackgroundColor3 = CORES.on
     infoBox.Visible = true
@@ -835,6 +862,8 @@ end
 function unlockTarget()
     locked = false
     target = nil
+    _G.EZEK_LOCKED = false
+    _G.EZEK_TARGET = nil
     lockBtn.Text = "🔓 LOCK: OFF"
     lockBtn.BackgroundColor3 = CORES.botao
     infoBox.Visible = false
@@ -901,6 +930,8 @@ player.CharacterRemoving:Connect(function()
     DEVE_RESETAR_ATE = tick() + 3
     locked = false
     target = nil
+    _G.EZEK_LOCKED = false
+    _G.EZEK_TARGET = nil
     pcall(function()
         RunService:UnbindFromRenderStep("EZEK_Cam")
         RunService:UnbindFromRenderStep("EZEK_Body")
@@ -918,9 +949,11 @@ end)
 
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.3)
-    DEVE_RESETAR_ATE = 0   -- 🔥 ZERA PRA PODER USAR DE NOVO
+    DEVE_RESETAR_ATE = 0
     locked = false
     target = nil
+    _G.EZEK_LOCKED = false
+    _G.EZEK_TARGET = nil
     if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
     resetarCamera()
     task.wait(0.3)
@@ -970,6 +1003,8 @@ task.spawn(function()
             if locked then
                 locked = false
                 target = nil
+                _G.EZEK_LOCKED = false
+                _G.EZEK_TARGET = nil
                 pcall(function()
                     RunService:UnbindFromRenderStep("EZEK_Cam")
                     RunService:UnbindFromRenderStep("EZEK_Body")
@@ -988,6 +1023,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v17.8!")
-print("🔥 Câmera segue o boneco em TEMPO REAL")
+print("✅ AIMLOCK DO EZEK v17.9!")
+print("🔥 Corpo segue a CÂMERA em tempo real")
+print("🔥 LinearVelocity sendo morto 33x por segundo")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
