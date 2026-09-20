@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.7 - MOBILE + CONSOLE + CONTROLE
--- Lock estável | Anda pros lados normal | Dash/skill pro alvo | Câmera segue o player
+-- AIMLOCK DO EZEK v16.8 - MOBILE + CONSOLE + CONTROLE
+-- Câmera segue o player | Anda pros lados normal | Mira no alvo
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -39,11 +39,6 @@ local camera = Workspace.CurrentCamera
 
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
-local VELOCIDADE_DASH = 30
-local VELOCIDADE_SKILL = 40
-local VELOCIDADE_Y_SKILL = 10
-local RAIO_DETECCAO_BOSS = 50
-local COOLDOWN_BOSS = 1.5
 
 -- ============ ESTADO ============
 local locked = false
@@ -54,6 +49,7 @@ local espLabels = {}
 local espUpdateConnection = nil
 local targetHealthESP = nil
 local cameraTypeAntigo = nil
+local cameraModeAntigo = nil
 
 local espUltimoScan = 0
 local ESP_SCAN_INTERVALO = 0.5
@@ -139,7 +135,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.7"
+title.Text = "🎯 AIMLOCK DO EZEK v16.8"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -879,7 +875,7 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- Scriptable: controla 100% a câmera (segue o player + mira no alvo)
+    -- Scriptable pra controlar 100% a câmera
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
@@ -887,7 +883,7 @@ local function updateCamera()
     local aimPos = part.Position
     if part.Name == "Head" then aimPos = aimPos + Vector3.new(0, -0.3, 0) end
 
-    -- Câmera SEMPRE atrás do player (acompanha ele andando) olhando o alvo
+    -- Câmera SEMPRE atrás do player (segue ele andando) olhando o alvo
     local eyePos = myRoot.Position + Vector3.new(0, 3.5, 0)
     local dir = aimPos - eyePos
     if dir.Magnitude < 0.1 then return end
@@ -929,34 +925,6 @@ local function updateBody()
         local atual = myRoot.CFrame
         myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
     end
-end
-
--- ============ EMPURRÃO PRO ALVO (só no momento do dash/skill) ============
-local function empurrarProAlvo()
-    if not locked or not target or not target.Parent then return end
-    local char = player.Character
-    if not char then return end
-    local myRoot = char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-    local part = getAimPart(target)
-    if not part then return end
-
-    local dir = Vector3.new(
-        part.Position.X - myRoot.Position.X,
-        0,
-        part.Position.Z - myRoot.Position.Z
-    )
-    if dir.Magnitude < 0.1 then return end
-    dir = dir.Unit
-
-    local vel = myRoot.AssemblyLinearVelocity
-    local forca = math.max(Vector3.new(vel.X, 0, vel.Z).Magnitude, VELOCIDADE_DASH)
-
-    myRoot.AssemblyLinearVelocity = Vector3.new(
-        dir.X * forca,
-        vel.Y,
-        dir.Z * forca
-    )
 end
 
 -- ============ ESP ============
@@ -1118,7 +1086,11 @@ function lockTarget(newTarget)
         end
     end)
 
+    -- Guarda configs antigas pra devolver no unlock
     cameraTypeAntigo = camera.CameraType
+    cameraModeAntigo = player.CameraMode
+
+    -- Scriptable pra controlar 100% a câmera (atrás do player olhando alvo)
     camera.CameraType = Enum.CameraType.Scriptable
 
     forcarOrientacao()
@@ -1144,9 +1116,13 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Body")
 
     pcall(function()
+        -- Devolve pro controle do Roblox (follow padrão)
         camera.CameraType = Enum.CameraType.Custom
         if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
             camera.CameraType = cameraTypeAntigo
+        end
+        if cameraModeAntigo then
+            player.CameraMode = cameraModeAntigo
         end
     end)
 
@@ -1301,9 +1277,9 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.7 pronto!")
+print("✅ AIMLOCK DO EZEK v16.8 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("🚶 Anda pros lados normal com lock ativado")
-print("🎯 Câmera segue o player + mira no alvo")
+print("🎥 Câmera atrás do player, seguindo ele + olhando o alvo")
+print("🚶 Anda pra frente/lados/trás normalmente")
 print("💀 Morte/respawn resetado")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
