@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v17.9 - CORPO SEGUE A CÂMERA
+-- AIMLOCK DO EZEK v18.0 - CORPO SEGUE CÂMERA + DEBUG ÂNGULO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -49,7 +49,10 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
--- 🔥 Expõe pra debug externo conseguir ler
+-- 🔥 DEBUG ANGULO
+local debugAngulo = true
+
+-- 🔥 Expõe pra debug externo
 _G.EZEK_LOCKED = false
 _G.EZEK_TARGET = nil
 
@@ -61,7 +64,7 @@ local function estaStunado()
     return dif >= 0 and dif < STUN_DURACAO
 end
 
--- ============ MATA ALIGN MOVERS (VERSÃO AGRESSIVA) ============
+-- ============ MATA ALIGN MOVERS ============
 local function matarMovers()
     local char = player.Character
     if not char then return end
@@ -71,27 +74,23 @@ local function matarMovers()
            or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity")
            or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
             pcall(function()
-                if obj.Enabled then obj.Enabled = false end
-                obj:Destroy()
-            end)
-        end
-    end
-    -- 🔥 Procura em pastas/modelos do char também
-    for _, pasta in ipairs(char:GetChildren()) do
-        if pasta:IsA("Folder") or pasta:IsA("Model") then
-            for _, obj in ipairs(pasta:GetDescendants()) do
-                if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
-                    pcall(function()
-                        obj.Enabled = false
-                        obj:Destroy()
-                    end)
+                if locked then
+                    if obj.Enabled then obj.Enabled = false end
+                    obj:Destroy()
+                else
+                    if obj:IsA("LinearVelocity") then
+                        local v = obj.Velocity
+                        if v and v.Magnitude > 200 then
+                            if obj.Enabled then obj.Enabled = false end
+                            obj:Destroy()
+                        end
+                    end
                 end
-            end
+            end)
         end
     end
 end
 
--- 🔥 Loop mais rápido: 0.03s
 task.spawn(function() while task.wait(0.03) do pcall(matarMovers) end end)
 
 -- ============ MONITOR DE HIT ============
@@ -189,7 +188,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v17.9"
+title.Text = "🎯 EZEK v18.0"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -221,11 +220,11 @@ scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 6
 scroll.ScrollBarImageColor3 = CORES.borda
-scroll.CanvasSize = UDim2.new(0, 0, 0, 500)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 560)
 scroll.Parent = main
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -10, 0, 500)
+content.Size = UDim2.new(1, -10, 0, 560)
 content.BackgroundTransparency = 1
 content.Parent = scroll
 
@@ -263,10 +262,36 @@ end
 local lockBtn = criarBotao("🔓 LOCK: OFF", 70)
 local espBtn = criarBotao("👁️ ESP: OFF", 120)
 
+-- 🔥 DEBUG ANGULO FRAME
+local debugFrame = Instance.new("Frame")
+debugFrame.Size = UDim2.new(1, 0, 0, 90)
+debugFrame.Position = UDim2.new(0, 0, 0, 170)
+debugFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+debugFrame.BackgroundTransparency = 0.3
+debugFrame.BorderSizePixel = 0
+debugFrame.Parent = content
+Instance.new("UICorner", debugFrame).CornerRadius = UDim.new(0, 8)
+local dbgStroke = Instance.new("UIStroke")
+dbgStroke.Color = Color3.fromRGB(0, 200, 100)
+dbgStroke.Thickness = 1
+dbgStroke.Parent = debugFrame
+
+local debugLabel = Instance.new("TextLabel")
+debugLabel.Size = UDim2.new(1, -16, 1, -12)
+debugLabel.Position = UDim2.new(0, 8, 0, 6)
+debugLabel.BackgroundTransparency = 1
+debugLabel.Text = "📐 DEBUG\naguardando..."
+debugLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+debugLabel.Font = Enum.Font.Code
+debugLabel.TextSize = 11
+debugLabel.TextXAlignment = Enum.TextXAlignment.Left
+debugLabel.TextYAlignment = Enum.TextYAlignment.Top
+debugLabel.Parent = debugFrame
+
 -- FILTROS
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
-filtroFrame.Position = UDim2.new(0, 0, 0, 170)
+filtroFrame.Position = UDim2.new(0, 0, 0, 270)
 filtroFrame.BackgroundColor3 = CORES.topo
 filtroFrame.BorderSizePixel = 0
 filtroFrame.Parent = content
@@ -328,7 +353,7 @@ criarCheck("👹 Monstros", "monstros", 86)
 -- SLIDERS
 local slidersFrame = Instance.new("Frame")
 slidersFrame.Size = UDim2.new(1, 0, 0, 130)
-slidersFrame.Position = UDim2.new(0, 0, 0, 290)
+slidersFrame.Position = UDim2.new(0, 0, 0, 390)
 slidersFrame.BackgroundColor3 = CORES.topo
 slidersFrame.BorderSizePixel = 0
 slidersFrame.Parent = content
@@ -436,7 +461,7 @@ criarSlider("↕️ Altura", 0.7, 1.6, escalaH, 74, function(v) escalaH = v; apl
 
 local infoBox = Instance.new("Frame")
 infoBox.Size = UDim2.new(1, 0, 0, 60)
-infoBox.Position = UDim2.new(0, 0, 0, 430)
+infoBox.Position = UDim2.new(0, 0, 0, 530)
 infoBox.BackgroundColor3 = CORES.topo
 infoBox.BorderSizePixel = 0
 infoBox.Visible = false
@@ -684,7 +709,7 @@ local function updateCamera()
     atualizarHPBar()
 end
 
--- ============ UPDATE CORPO (SEGUE A CÂMERA) ============
+-- ============ UPDATE CORPO (SEGUE CÂMERA) ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -694,7 +719,6 @@ local function updateBody()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not myRoot or not hum or hum.Health <= 0 then return end
     
-    -- 🔥 Mata movers TODA FRAME durante lock
     matarMovers()
     
     if estaStunado() or tick() - ultimoHitTime < HIT_JANELA then
@@ -702,10 +726,8 @@ local function updateBody()
         return
     end
     
-    -- 🔥 Força AutoRotate false toda frame
     if hum.AutoRotate ~= false then hum.AutoRotate = false end
     
-    -- 🔥 Agora o corpo segue a DIREÇÃO DA CÂMERA
     camera = Workspace.CurrentCamera
     if not camera then return end
     
@@ -717,9 +739,38 @@ local function updateBody()
     local destino = myRoot.Position + flat
     myRoot.CFrame = myRoot.CFrame:Lerp(
         CFrame.lookAt(myRoot.Position, destino),
-        0.25
+        0.35
     )
 end
+
+-- ============ DEBUG ANGULO LOOP ============
+task.spawn(function()
+    while task.wait(0.1) do
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local cam = Workspace.CurrentCamera
+        
+        if root and cam and hum then
+            local bLook = root.CFrame.LookVector
+            local cLook = cam.CFrame.LookVector
+            local bF = Vector3.new(bLook.X, 0, bLook.Z)
+            local cF = Vector3.new(cLook.X, 0, cLook.Z)
+            
+            if bF.Magnitude > 0.01 and cF.Magnitude > 0.01 then
+                local ang = math.deg(math.acos(math.clamp(bF.Unit:Dot(cF.Unit), -1, 1)))
+                local status = ang < 15 and "✅ OK" or (ang < 45 and "⚠️ MEDIO" or "🚨 TRAVADO")
+                
+                local lockIcon = locked and "🔒" or "🔓"
+                debugLabel.Text = string.format(
+                    "📐 DEBUG %s\nBody: X=%.2f Z=%.2f\nCam:  X=%.2f Z=%.2f\nAngulo: %.0f° %s",
+                    lockIcon, bLook.X, bLook.Z, cLook.X, cLook.Z, ang, status
+                )
+                debugLabel.TextColor3 = ang < 15 and Color3.fromRGB(0, 255, 120) or (ang < 45 and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 60, 60))
+            end
+        end
+    end
+end)
 
 -- ============ ESP ============
 local function createESP(model)
@@ -1023,7 +1074,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v17.9!")
-print("🔥 Corpo segue a CÂMERA em tempo real")
-print("🔥 LinearVelocity sendo morto 33x por segundo")
+print("✅ AIMLOCK DO EZEK v18.0!")
+print("📐 Debug de ângulo ativo no painel")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
