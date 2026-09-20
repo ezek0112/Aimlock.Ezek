@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.14 - MOBILE + CONSOLE + CONTROLE
--- Solta AutoRotate quando toma hit / combat lock do PS ativa
+-- AIMLOCK DO EZEK v16.15 - MOBILE + CONSOLE + CONTROLE
+-- Solta câmera + AutoRotate quando toma hit; monitor contínuo agressivo
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -37,7 +37,6 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
 local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
@@ -68,12 +67,12 @@ local ESCALA_MAX = 1.6
 
 local filtros = { players = true, dummies = true, monstros = true }
 
--- ============ HIT / COMBAT LOCK DETECTION ============
+-- ============ HIT DETECTION ============
 local ultimoHitTime = 0
 local vidaAnterior = 100
-local HIT_JANELA = 0.5
+local HIT_JANELA = 0.6
 
--- ============ RESET DE CÂMERA ============
+-- ============ RESET CÂMERA ============
 local function resetarCamera()
     pcall(function()
         local cam = Workspace.CurrentCamera
@@ -97,9 +96,7 @@ end
 Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     if Workspace.CurrentCamera then
         camera = Workspace.CurrentCamera
-        if not locked then
-            resetarCamera()
-        end
+        if not locked then resetarCamera() end
     end
 end)
 
@@ -119,7 +116,7 @@ task.spawn(function()
     end
 end)
 
--- ============ MONITOR AGRESSIVO DE HIT ============
+-- ============ MONITOR DE HIT ============
 task.spawn(function()
     while task.wait(0.05) do
         local char = player.Character
@@ -127,13 +124,11 @@ task.spawn(function()
         local hum = char:FindFirstChildOfClass("Humanoid")
         if not hum then continue end
 
-        -- Detecta HP caindo = tomou hit
         if hum.Health < vidaAnterior - 0.5 then
             ultimoHitTime = tick()
         end
         vidaAnterior = hum.Health
 
-        -- Detecta atributos de stun/combat lock
         local attrs = {"Stunned","Stun","Knocked","Knockback","Frozen","Grabbed",
                        "Staggered","Paralyzed","Locked","CombatLock","InCombat","Hit"}
         for _, nome in ipairs(attrs) do
@@ -143,7 +138,7 @@ task.spawn(function()
             end
         end
 
-        -- 🔥 SE TOMOU HIT: solta AutoRotate e libera a câmera pro Roblox
+        -- Solta AutoRotate se tomou hit
         if tick() - ultimoHitTime < HIT_JANELA then
             if hum.AutoRotate ~= true then
                 hum.AutoRotate = true
@@ -247,7 +242,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.14"
+title.Text = "🎯 AIMLOCK DO EZEK v16.15"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -357,10 +352,7 @@ local function getHealth(model)
     for _, nome in ipairs(atributos) do
         local v = model:GetAttribute(nome)
         if v and type(v) == "number" then
-            local maxV = model:GetAttribute("MaxHealth")
-                      or model:GetAttribute("MaxHP")
-                      or model:GetAttribute("maxHealth")
-                      or 100
+            local maxV = model:GetAttribute("MaxHealth") or model:GetAttribute("MaxHP") or model:GetAttribute("maxHealth") or 100
             return v, maxV, "Attribute"
         end
     end
@@ -386,12 +378,9 @@ end
 
 getTipoAlvo = function(model)
     if not model then return "monstros" end
-    if Players:GetPlayerFromCharacter(model) then
-        return "players"
-    end
+    if Players:GetPlayerFromCharacter(model) then return "players" end
     local n = string.lower(model.Name)
-    if n:find("dummy") or n:find("training") or n:find("test")
-       or n:find("practice") or n:find("target") then
+    if n:find("dummy") or n:find("training") or n:find("test") or n:find("practice") or n:find("target") then
         return "dummies"
     end
     local parent = model.Parent
@@ -404,7 +393,7 @@ getTipoAlvo = function(model)
     return "monstros"
 end
 
--- ============ FILTROS UI ============
+-- ============ FILTROS ============
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
 filtroFrame.Position = UDim2.new(0, 0, 0, 170)
@@ -605,23 +594,14 @@ local function aplicarTamanho()
     tamanhoNormal = UDim2.new(0, w, 0, h)
     tamanhoMin    = UDim2.new(0, w, 0, tamHmin)
     if not minimized then
-        TweenService:Create(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
-            Size = tamanhoNormal
-        }):Play()
+        TweenService:Create(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { Size = tamanhoNormal }):Play()
     else
         main.Size = tamanhoMin
     end
 end
 
-criarSlider("↔️ Largura", ESCALA_MIN, ESCALA_MAX, escalaW, 26, function(v)
-    escalaW = v
-    aplicarTamanho()
-end)
-
-criarSlider("↕️ Altura", ESCALA_MIN, ESCALA_MAX, escalaH, 74, function(v)
-    escalaH = v
-    aplicarTamanho()
-end)
+criarSlider("↔️ Largura", ESCALA_MIN, ESCALA_MAX, escalaW, 26, function(v) escalaW = v; aplicarTamanho() end)
+criarSlider("↕️ Altura", ESCALA_MIN, ESCALA_MAX, escalaH, 74, function(v) escalaH = v; aplicarTamanho() end)
 
 local infoBox = Instance.new("Frame")
 infoBox.Size = UDim2.new(1, 0, 0, 60)
@@ -680,9 +660,7 @@ makeDraggable(main, topBar)
 
 minBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
-    TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
-        Size = minimized and tamanhoMin or tamanhoNormal
-    }):Play()
+    TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Size = minimized and tamanhoMin or tamanhoNormal }):Play()
     scroll.Visible = not minimized
     minBtn.Text = minimized and "+" or "—"
 end)
@@ -718,7 +696,7 @@ local function setAutoRotate(state)
     end)
 end
 
--- ============ KILL LOCK NATIVO DO PS ============
+-- ============ KILL LOCK NATIVO ============
 local function matarLockNativo()
     pcall(function()
         local pg = player:FindFirstChild("PlayerGui")
@@ -734,15 +712,6 @@ local function matarLockNativo()
         end
     end)
 end
-
--- Monitor: só mata GUI quando tomou hit recente
-task.spawn(function()
-    while task.wait(0.3) do
-        if locked and (tick() - ultimoHitTime < 1.0) then
-            matarLockNativo()
-        end
-    end
-end)
 
 -- ============ CANDIDATOS ============
 local function isValidTarget(model)
@@ -847,19 +816,14 @@ local function updateTargetInfo()
     local tName = target.Name
     local tagTipo = "🤖 NPC"
     local tPlr = Players:GetPlayerFromCharacter(target)
-    if tPlr then
-        tName = tPlr.Name
-        tagTipo = "👤 Player"
-    end
+    if tPlr then tName = tPlr.Name; tagTipo = "👤 Player" end
     local col = "🟢"
     if pct < 30 then col = "🔴" elseif pct < 60 then col = "🟡" end
     infoLabel.Text = string.format("%s %s\n%s %d/%d (%d%%) 📏 %dm", tagTipo, tName, col, math.floor(hp), math.floor(maxHp or 100), pct, dist)
 end
 
 local function criarHPBarDoAlvo(model)
-    if targetHealthESP and targetHealthESP.Parent then
-        targetHealthESP:Destroy()
-    end
+    if targetHealthESP and targetHealthESP.Parent then targetHealthESP:Destroy() end
     if not model or not model.Parent then return end
     local root = getAimPart(model)
     if not root then return end
@@ -917,13 +881,9 @@ local function atualizarHPBarDoAlvo()
         local fill = barBg:FindFirstChild("Fill")
         if fill then
             fill.Size = UDim2.new(pct, 0, 1, 0)
-            if pct > 0.6 then
-                fill.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-            elseif pct > 0.3 then
-                fill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-            else
-                fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-            end
+            if pct > 0.6 then fill.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+            elseif pct > 0.3 then fill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+            else fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50) end
         end
     end
     local label = targetHealthESP:FindFirstChild("Label")
@@ -942,9 +902,7 @@ local function removerHPBarDoAlvo()
     end
 end
 
-local function forcarOrientacao()
-    return
-end
+local function forcarOrientacao() return end
 
 -- ============ UPDATE CAMERA ============
 local ultimaForcadaCamera = 0
@@ -956,22 +914,19 @@ local function updateCamera()
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then
-        task.defer(unlockTarget)
-        return
-    end
+    if not hum or hum.Health <= 0 then task.defer(unlockTarget); return end
     local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
     if not myRoot then return end
     local hp = getHealth(target)
-    if not hp or hp <= 0 then
-        task.defer(unlockTarget)
-        return
-    end
+    if not hp or hp <= 0 then task.defer(unlockTarget); return end
     local part = getAimPart(target)
     if not part then return end
 
-    -- 🔥 Se tomou hit recente, NÃO força Scriptable (deixa o Roblox)
+    -- 🔥 TOMOU HIT: devolve câmera pro Roblox e espera
     if tick() - ultimoHitTime < HIT_JANELA then
+        if camera.CameraType == Enum.CameraType.Scriptable then
+            pcall(function() camera.CameraType = Enum.CameraType.Custom end)
+        end
         return
     end
 
@@ -1010,9 +965,7 @@ local function updateBody()
     if not hum then return end
     if hum.Health <= 0 then return end
     if estaSobEfeitoDeSkill(char, hum) then
-        if hum.AutoRotate ~= true then
-            hum.AutoRotate = true
-        end
+        if hum.AutoRotate ~= true then hum.AutoRotate = true end
         return
     end
     local hp = getHealth(target)
@@ -1021,14 +974,10 @@ local function updateBody()
     if not part then return end
     local moveDir = hum.MoveDirection
     if moveDir.Magnitude > 0.1 then
-        if hum.AutoRotate ~= true then
-            hum.AutoRotate = true
-        end
+        if hum.AutoRotate ~= true then hum.AutoRotate = true end
         return
     end
-    if hum.AutoRotate ~= false then
-        hum.AutoRotate = false
-    end
+    if hum.AutoRotate ~= false then hum.AutoRotate = false end
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
     if lookDir.Magnitude > 0.5 then
@@ -1044,13 +993,9 @@ local function createESP(model)
     if not root then return end
     local tipo = getTipoAlvo(model)
     local fillColor
-    if tipo == "players" then
-        fillColor = Color3.fromRGB(255, 70, 70)
-    elseif tipo == "dummies" then
-        fillColor = Color3.fromRGB(255, 200, 0)
-    else
-        fillColor = Color3.fromRGB(70, 150, 255)
-    end
+    if tipo == "players" then fillColor = Color3.fromRGB(255, 70, 70)
+    elseif tipo == "dummies" then fillColor = Color3.fromRGB(255, 200, 0)
+    else fillColor = Color3.fromRGB(70, 150, 255) end
     local hl = Instance.new("Highlight")
     hl.FillColor = fillColor
     hl.FillTransparency = 0.5
@@ -1116,10 +1061,7 @@ local function updateESP()
                 local tName = model.Name
                 local tag = "🤖"
                 local tPlr = Players:GetPlayerFromCharacter(model)
-                if tPlr then
-                    tName = tPlr.Name
-                    tag = "👤"
-                end
+                if tPlr then tName = tPlr.Name; tag = "👤" end
                 local pct = (hp / math.max(maxHp or 100, 1)) * 100
                 local col = Color3.fromRGB(0, 255, 0)
                 if pct < 30 then col = Color3.fromRGB(255, 0, 0)
@@ -1172,7 +1114,6 @@ end
 
 function lockTarget(newTarget)
     matarLockNativo()
-
     target = newTarget
     locked = true
     lockBtn.Text = "🔒 LOCK: ON"
@@ -1181,7 +1122,6 @@ function lockTarget(newTarget)
     updateTargetInfo()
     criarHPBarDoAlvo(newTarget)
     setAutoRotate(false)
-
     pcall(function()
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if hum then
@@ -1189,18 +1129,14 @@ function lockTarget(newTarget)
             hum.CameraOffset = Vector3.new(0, 0, 0)
         end
     end)
-
     cameraTypeAntigo = camera.CameraType
     cameraModeAntigo = player.CameraMode
     camera.CameraType = Enum.CameraType.Scriptable
-
     forcarOrientacao()
-
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:BindToRenderStep("EZEK_Cam", Enum.RenderPriority.Camera.Value + 1, updateCamera)
     RunService:UnbindFromRenderStep("EZEK_Body")
     RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 10, updateBody)
-
     atualizarStatus()
 end
 
@@ -1220,9 +1156,7 @@ function unlockTarget()
                 Workspace.CurrentCamera.CameraType = cameraTypeAntigo
             end
         end
-        if cameraModeAntigo then
-            player.CameraMode = cameraModeAntigo
-        end
+        if cameraModeAntigo then player.CameraMode = cameraModeAntigo end
     end)
     pcall(function()
         local char = player.Character
@@ -1245,15 +1179,11 @@ function unlockTarget()
 end
 
 local function toggleLock()
-    if locked then
-        unlockTarget()
+    if locked then unlockTarget()
     else
         local t = findTarget()
-        if t then
-            lockTarget(t)
-        else
-            print("❌ Nenhum alvo no centro da tela! Mire no inimigo e tente de novo.")
-        end
+        if t then lockTarget(t)
+        else print("❌ Nenhum alvo no centro da tela! Mire no inimigo e tente de novo.") end
     end
 end
 
@@ -1261,50 +1191,33 @@ lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
 -- ============ INPUTS ============
-local r1Pressionado = false
-local r2Pressionado = false
-local l1Pressionado = false
-local l2Pressionado = false
-local ultimoToggleLock = 0
-local ultimoToggleESP = 0
+local r1Pressionado, r2Pressionado, l1Pressionado, l2Pressionado = false, false, false, false
+local ultimoToggleLock, ultimoToggleESP = 0, 0
 local comboCooldown = 0.8
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if locked then
-        if input.KeyCode == Enum.KeyCode.ButtonX
-           or input.KeyCode == Enum.KeyCode.ButtonA
-           or input.KeyCode == Enum.KeyCode.LeftShift
-           or input.KeyCode == Enum.KeyCode.Q
-           or input.KeyCode == Enum.KeyCode.ButtonR1
-           or input.KeyCode == Enum.KeyCode.ButtonR2
-           or input.KeyCode == Enum.KeyCode.ButtonL1
-           or input.KeyCode == Enum.KeyCode.ButtonL2 then
+        if input.KeyCode == Enum.KeyCode.ButtonX or input.KeyCode == Enum.KeyCode.ButtonA
+           or input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.Q
+           or input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2
+           or input.KeyCode == Enum.KeyCode.ButtonL1 or input.KeyCode == Enum.KeyCode.ButtonL2 then
             forcarOrientacao()
         end
     end
-    if input.KeyCode == Enum.KeyCode.Q then
-        toggleLock()
-    elseif input.KeyCode == Enum.KeyCode.E then
-        toggleESP()
-    end
+    if input.KeyCode == Enum.KeyCode.Q then toggleLock()
+    elseif input.KeyCode == Enum.KeyCode.E then toggleESP() end
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1Pressionado = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2Pressionado = true end
     if input.KeyCode == Enum.KeyCode.ButtonL1 then l1Pressionado = true end
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2Pressionado = true end
     if r1Pressionado and r2Pressionado then
         local agora = tick()
-        if agora - ultimoToggleLock > comboCooldown then
-            toggleLock()
-            ultimoToggleLock = agora
-        end
+        if agora - ultimoToggleLock > comboCooldown then toggleLock(); ultimoToggleLock = agora end
     end
     if l1Pressionado and l2Pressionado then
         local agora = tick()
-        if agora - ultimoToggleESP > comboCooldown then
-            toggleESP()
-            ultimoToggleESP = agora
-        end
+        if agora - ultimoToggleESP > comboCooldown then toggleESP(); ultimoToggleESP = agora end
     end
 end)
 
@@ -1332,16 +1245,14 @@ player.CharacterRemoving:Connect(function()
         if infoBox then infoBox.Visible = false end
     end)
     pcall(function() removerHPBarDoAlvo() end)
-    print("💀 [EZEK] Morreu — lock e câmera resetados!")
+    print("💀 [EZEK] Morreu — resetado!")
 end)
 
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     locked = false
     target = nil
-    if Workspace.CurrentCamera then
-        camera = Workspace.CurrentCamera
-    end
+    if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
     resetarCamera()
     pcall(function()
         if lockBtn then
@@ -1358,12 +1269,9 @@ player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     pcall(function() removerHPBarDoAlvo() end)
     pcall(function() atualizarStatus() end)
-    print("✅ [EZEK] Personagem respawnou — câmera resetada!")
+    print("✅ [EZEK] Respawnou — resetado!")
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.14 pronto!")
-print("🔒 Chave: " .. PROTECAO.chave)
-print("📱 Modo: " .. (IS_MOBILE and "MOBILE" or "PC/CONSOLE"))
-print("⚔️ Solta AutoRotate + câmera ao tomar hit/combat lock")
+print("✅ AIMLOCK DO EZEK v16.15 pronto!")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
