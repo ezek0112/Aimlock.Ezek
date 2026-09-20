@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.2 - DASH FUNCIONANDO + SEM FANTASMA
+-- AIMLOCK DO EZEK v18.3 - DASH SEGUE A CÂMERA APÓS LOCK
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -88,7 +88,6 @@ local function matarMovers()
             local idade = agora - moverAges[obj]
             
             if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
-                -- 🔥 LinearVelocity: só mata se for ANTIGO (fantasma)
                 if idade > 0.5 then
                     pcall(function()
                         if obj.Enabled then obj.Enabled = false end
@@ -97,7 +96,6 @@ local function matarMovers()
                     moverAges[obj] = nil
                 end
             else
-                -- Outros movers: mata sempre (v17.8)
                 pcall(function() obj:Destroy() end)
                 moverAges[obj] = nil
             end
@@ -208,7 +206,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.2"
+title.Text = "🎯 EZEK v18.3"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -729,7 +727,7 @@ local function updateCamera()
     atualizarHPBar()
 end
 
--- ============ UPDATE CORPO (SEGUE CÂMERA) ============
+-- ============ UPDATE CORPO (SEGUE CÂMERA + FORÇA MOVEDIRECTION) ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -761,6 +759,11 @@ local function updateBody()
         CFrame.lookAt(myRoot.Position, destino),
         0.35
     )
+    
+    -- 🔥 FORÇA o MoveDirection a atualizar junto com a câmera
+    pcall(function()
+        hum.MoveDirection = flat
+    end)
 end
 
 -- ============ DEBUG ANGULO LOOP ============
@@ -927,6 +930,24 @@ function lockTarget(novoAlvo)
     RunService:BindToRenderStep("EZEK_Cam", Enum.RenderPriority.Camera.Value + 1, updateCamera)
     RunService:UnbindFromRenderStep("EZEK_Body")
     RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 10, updateBody)
+    
+    -- 🔥 FORÇA atualizar direção no lock novo
+    pcall(function()
+        local char = player.Character
+        local hum2 = char and char:FindFirstChildOfClass("Humanoid")
+        local root2 = char and char:FindFirstChild("HumanoidRootPart")
+        local cam2 = Workspace.CurrentCamera
+        if hum2 and root2 and cam2 then
+            local cLook = cam2.CFrame.LookVector
+            local flat2 = Vector3.new(cLook.X, 0, cLook.Z)
+            if flat2.Magnitude > 0.01 then
+                flat2 = flat2.Unit
+                root2.CFrame = CFrame.lookAt(root2.Position, root2.Position + flat2)
+                hum2.MoveDirection = flat2
+            end
+        end
+    end)
+    
     atualizarStatus()
 end
 
@@ -1094,7 +1115,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.2!")
-print("🔥 Corpo segue CÂMERA + Dash funcionando")
-print("💀 Fantasma de kill é removido automaticamente")
+print("✅ AIMLOCK DO EZEK v18.3!")
+print("🔥 Corpo segue CÂMERA + Dash atualiza direção")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
