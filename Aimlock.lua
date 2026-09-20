@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.13 - MOBILE + CONSOLE + CONTROLE
--- Mata o combat lock nativo do Project Slayers
+-- AIMLOCK DO EZEK v16.14 - MOBILE + CONSOLE + CONTROLE
+-- Solta AutoRotate quando toma hit / combat lock do PS ativa
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -41,50 +41,6 @@ local camera = Workspace.CurrentCamera
 local DISTANCIA_CAMERA = 12
 local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- ============ RESET DE CÂMERA ============
-local function resetarCamera()
-    pcall(function()
-        local cam = Workspace.CurrentCamera
-        if cam then
-            cam.CameraType = Enum.CameraType.Custom
-            local char = player.Character
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if hum then
-                    cam.CameraSubject = hum
-                elseif root then
-                    cam.CameraSubject = root
-                end
-            end
-        end
-        player.CameraMode = Enum.CameraMode.Classic
-    end)
-end
-
-Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    if Workspace.CurrentCamera then
-        camera = Workspace.CurrentCamera
-        resetarCamera()
-    end
-end)
-
-task.spawn(function()
-    while task.wait(1) do
-        local char = player.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum and not hum:GetAttribute("EZEK_HOOKED") then
-                hum:SetAttribute("EZEK_HOOKED", true)
-                hum.Died:Connect(function()
-                    task.wait(0.2)
-                    resetarCamera()
-                end)
-            end
-        end
-    end
-end)
-
 -- ============ ESTADO ============
 local locked = false
 local target = nil
@@ -111,6 +67,117 @@ local ESCALA_MIN = 0.7
 local ESCALA_MAX = 1.6
 
 local filtros = { players = true, dummies = true, monstros = true }
+
+-- ============ HIT / COMBAT LOCK DETECTION ============
+local ultimoHitTime = 0
+local vidaAnterior = 100
+local HIT_JANELA = 0.5
+
+-- ============ RESET DE CÂMERA ============
+local function resetarCamera()
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum then
+                    cam.CameraSubject = hum
+                elseif root then
+                    cam.CameraSubject = root
+                end
+            end
+        end
+        player.CameraMode = Enum.CameraMode.Classic
+    end)
+end
+
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    if Workspace.CurrentCamera then
+        camera = Workspace.CurrentCamera
+        if not locked then
+            resetarCamera()
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and not hum:GetAttribute("EZEK_HOOKED") then
+                hum:SetAttribute("EZEK_HOOKED", true)
+                hum.Died:Connect(function()
+                    task.wait(0.2)
+                    resetarCamera()
+                end)
+            end
+        end
+    end
+end)
+
+-- ============ MONITOR AGRESSIVO DE HIT ============
+task.spawn(function()
+    while task.wait(0.05) do
+        local char = player.Character
+        if not char then continue end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then continue end
+
+        -- Detecta HP caindo = tomou hit
+        if hum.Health < vidaAnterior - 0.5 then
+            ultimoHitTime = tick()
+        end
+        vidaAnterior = hum.Health
+
+        -- Detecta atributos de stun/combat lock
+        local attrs = {"Stunned","Stun","Knocked","Knockback","Frozen","Grabbed",
+                       "Staggered","Paralyzed","Locked","CombatLock","InCombat","Hit"}
+        for _, nome in ipairs(attrs) do
+            if hum:GetAttribute(nome) or char:GetAttribute(nome) then
+                ultimoHitTime = tick()
+                break
+            end
+        end
+
+        -- 🔥 SE TOMOU HIT: solta AutoRotate e libera a câmera pro Roblox
+        if tick() - ultimoHitTime < HIT_JANELA then
+            if hum.AutoRotate ~= true then
+                hum.AutoRotate = true
+            end
+        end
+    end
+end)
+
+-- ============ DETECÇÃO DE STUN ============
+local function estaSobEfeitoDeSkill(char, hum)
+    if not char or not hum then return true end
+
+    local estado = hum:GetState()
+    if estado == Enum.HumanoidStateType.Physics
+       or estado == Enum.HumanoidStateType.Ragdoll
+       or estado == Enum.HumanoidStateType.PlatformStanding
+       or hum.PlatformStand == true then
+        return true
+    end
+
+    local attrs = {"Stunned","Stun","Knocked","Knockback","Frozen","Grabbed",
+                   "Staggered","Paralyzed","Locked","CombatLock","InCombat"}
+    for _, nome in ipairs(attrs) do
+        if hum:GetAttribute(nome) or char:GetAttribute(nome) then
+            return true
+        end
+    end
+
+    if tick() - ultimoHitTime < HIT_JANELA then
+        return true
+    end
+
+    return false
+end
 
 -- ============ CORES ============
 local CORES = {
@@ -180,7 +247,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.13"
+title.Text = "🎯 AIMLOCK DO EZEK v16.14"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -651,7 +718,7 @@ local function setAutoRotate(state)
     end)
 end
 
--- ============ KILL LOCK NATIVO DO PROJECT SLAYERS ============
+-- ============ KILL LOCK NATIVO DO PS ============
 local function matarLockNativo()
     pcall(function()
         local pg = player:FindFirstChild("PlayerGui")
@@ -666,35 +733,13 @@ local function matarLockNativo()
             end
         end
     end)
-    pcall(function()
-        local cg = game:GetService("CoreGui")
-        for _, gui in ipairs(cg:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Enabled then
-                local n = string.lower(gui.Name)
-                if n:find("lock") or n:find("target") then
-                    gui.Enabled = false
-                end
-            end
-        end
-    end)
 end
 
--- Monitor: se o nativo voltar, mata de novo
+-- Monitor: só mata GUI quando tomou hit recente
 task.spawn(function()
-    while task.wait(0.5) do
-        if locked then
-            pcall(function()
-                local pg = player:FindFirstChild("PlayerGui")
-                if not pg then return end
-                for _, gui in ipairs(pg:GetChildren()) do
-                    if gui:IsA("ScreenGui") and gui.Enabled then
-                        local n = string.lower(gui.Name)
-                        if n:find("lock") or n:find("target") then
-                            gui.Enabled = false
-                        end
-                    end
-                end
-            end)
+    while task.wait(0.3) do
+        if locked and (tick() - ultimoHitTime < 1.0) then
+            matarLockNativo()
         end
     end
 end)
@@ -897,46 +942,6 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ DETECÇÃO DE STUN ============
-local ultimoHitTime = 0
-local vidaAnterior = 100
-local HIT_JANELA = 0.4
-
-local function estaSobEfeitoDeSkill(char, hum)
-    if not char or not hum then return true end
-    local estado = hum:GetState()
-    if estado == Enum.HumanoidStateType.Physics
-       or estado == Enum.HumanoidStateType.Ragdoll
-       or estado == Enum.HumanoidStateType.PlatformStanding
-       or hum.PlatformStand == true then
-        return true
-    end
-    local attrs = {"Stunned","Stun","Knocked","Knockback","Frozen","Grabbed",
-                   "Staggered","Paralyzed"}
-    for _, nome in ipairs(attrs) do
-        if hum:GetAttribute(nome) or char:GetAttribute(nome) then
-            return true
-        end
-    end
-    if tick() - ultimoHitTime < HIT_JANELA then
-        return true
-    end
-    return false
-end
-
-task.spawn(function()
-    while task.wait(0.05) do
-        local char = player.Character
-        if not char then continue end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hum then continue end
-        if hum.Health < vidaAnterior - 0.5 then
-            ultimoHitTime = tick()
-        end
-        vidaAnterior = hum.Health
-    end
-end)
-
 local function forcarOrientacao()
     return
 end
@@ -964,6 +969,12 @@ local function updateCamera()
     end
     local part = getAimPart(target)
     if not part then return end
+
+    -- 🔥 Se tomou hit recente, NÃO força Scriptable (deixa o Roblox)
+    if tick() - ultimoHitTime < HIT_JANELA then
+        return
+    end
+
     local agora = tick()
     local tempoEspera = IS_MOBILE and 1.5 or 0.5
     if camera.CameraType ~= Enum.CameraType.Scriptable then
@@ -1351,8 +1362,8 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.13 pronto!")
+print("✅ AIMLOCK DO EZEK v16.14 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("📱 Modo: " .. (IS_MOBILE and "MOBILE" or "PC/CONSOLE"))
-print("⚔️ Combat lock nativo do Project Slayers é morto continuamente")
+print("⚔️ Solta AutoRotate + câmera ao tomar hit/combat lock")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
