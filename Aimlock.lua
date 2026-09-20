@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v17.3 - COMPLETO
+-- AIMLOCK DO EZEK v17.4 - COMPLETO COM RESET PÓS-MORTE
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -162,7 +162,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v17.3"
+title.Text = "🎯 EZEK v17.4"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -560,6 +560,7 @@ local function criarHPBar(model)
     bb.Parent = model
     hpBarAlvo = bb
     local bg = Instance.new("Frame")
+    bg.Name = "BarBg"
     bg.Size = UDim2.new(1, 0, 0, 14)
     bg.Position = UDim2.new(0, 0, 0, 20)
     bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -590,12 +591,7 @@ local function atualizarHPBar()
     local hp, maxHp = getHealth(target)
     if not hp then return end
     local pct = math.clamp(hp / math.max(maxHp or 100, 1), 0, 1)
-    local bg = hpBarAlvo:FindFirstChild("Frame")
-    if not bg then
-        for _, c in ipairs(hpBarAlvo:GetChildren()) do
-            if c:IsA("Frame") and c:FindFirstChild("Fill") then bg = c; break end
-        end
-    end
+    local bg = hpBarAlvo:FindFirstChild("BarBg")
     if bg then
         local fill = bg:FindFirstChild("Fill")
         if fill then
@@ -619,6 +615,49 @@ local function resetarCamera()
         end
         player.CameraMode = Enum.CameraMode.Classic
     end)
+end
+
+-- ============ FORÇA RESET (PÓS-MORTE) ============
+local function forcarReset()
+    locked = false
+    target = nil
+    
+    pcall(function()
+        RunService:UnbindFromRenderStep("EZEK_Cam")
+        RunService:UnbindFromRenderStep("EZEK_Body")
+    end)
+    
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            cam.CameraSubject = nil
+            cam.CameraOffset = Vector3.new(0, 0, 0)
+        end
+        player.CameraMode = Enum.CameraMode.Classic
+    end)
+    
+    pcall(function()
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.AutoRotate = true
+                hum.CameraOffset = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+    
+    pcall(function()
+        if lockBtn then
+            lockBtn.Text = "🔓 LOCK: OFF"
+            lockBtn.BackgroundColor3 = CORES.botao
+        end
+        if infoBox then infoBox.Visible = false end
+        if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
+    end)
+    
+    atualizarStatus()
 end
 
 -- ============ UPDATE CÂMERA ============
@@ -775,7 +814,7 @@ local function updateESP()
     end
 end
 
-local function atualizarStatus()
+function atualizarStatus()
     statusLabel.Text = (locked and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n" .. (espEnabled and "👁️ ESP: ON" or "👁️ ESP: OFF")
     statusLabel.TextColor3 = (locked or espEnabled) and CORES.on or CORES.textoFraco
 end
@@ -890,35 +929,44 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ============ MORTE ============
-player.CharacterRemoving:Connect(function()
-    locked = false
-    target = nil
-    pcall(function()
-        RunService:UnbindFromRenderStep("EZEK_Cam")
-        RunService:UnbindFromRenderStep("EZEK_Body")
-    end)
-    resetarCamera()
-    if lockBtn then
-        lockBtn.Text = "🔓 LOCK: OFF"
-        lockBtn.BackgroundColor3 = CORES.botao
+task.spawn(function()
+    while task.wait(0.5) do
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and not hum:GetAttribute("EZEK_DIED_HOOKED") then
+                hum:SetAttribute("EZEK_DIED_HOOKED", true)
+                hum.Died:Connect(function()
+                    forcarReset()
+                    print("💀 [EZEK] Morreu — reset IMEDIATO")
+                end)
+            end
+        end
     end
-    if infoBox then infoBox.Visible = false end
-    if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
 end)
 
-player.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    locked = false
-    target = nil
+player.CharacterRemoving:Connect(function()
+    forcarReset()
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+    forcarReset()
+    task.wait(0.1)
     if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
-    resetarCamera()
-    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.AutoRotate = true end
+    forcarReset()
+    task.wait(0.5)
+    if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
+    forcarReset()
+    local hum = newChar:WaitForChild("Humanoid", 5)
+    if hum then
+        hum.AutoRotate = true
+        hum.CameraOffset = Vector3.new(0, 0, 0)
+    end
+    print("✅ [EZEK] Respawn — reset aplicado")
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v17.3 COMPLETO!")
-print("🔥 AimAssist/Combat desativados")
-print("🔥 Detecção via Last_Stunned ativa")
+print("✅ AIMLOCK DO EZEK v17.4 COMPLETO!")
+print("🔥 Reset pós-morte TRIPLO (Died + Removing + Added)")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
