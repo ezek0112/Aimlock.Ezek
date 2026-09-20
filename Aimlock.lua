@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.6 - MOBILE + CONSOLE + CONTROLE
--- Lock estável em PvP | Trava corpo ignorando animações | Dash e skill pro alvo
+-- AIMLOCK DO EZEK v16.7 - MOBILE + CONSOLE + CONTROLE
+-- Lock estável | Anda pros lados normal | Dash/skill pro alvo | Câmera segue o player
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -54,12 +54,6 @@ local espLabels = {}
 local espUpdateConnection = nil
 local targetHealthESP = nil
 local cameraTypeAntigo = nil
-
-local ultimaMudancaCamera = 0
-local cameraUltimaCFrame = nil
-
-local ultimaDeteccaoBoss = 0
-local bossDetectado = false
 
 local espUltimoScan = 0
 local ESP_SCAN_INTERVALO = 0.5
@@ -145,7 +139,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.6"
+title.Text = "🎯 AIMLOCK DO EZEK v16.7"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -842,7 +836,7 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ FORÇA ORIENTAÇÃO ============
+-- ============ FORÇA ORIENTAÇÃO (visual) ============
 local function forcarOrientacao()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -855,13 +849,13 @@ local function forcarOrientacao()
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
     if lookDir.Magnitude > 0.1 then
-        myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
+        -- Só troca a ROTAÇÃO, mantém a posição intacta
+        local atual = myRoot.CFrame
+        myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
     end
 end
 
--- ============ UPDATE CAMERA (CORRIGIDO) ============
--- Mantém o follow padrão do Roblox (câmera segue o player de verdade)
--- e só gira a visão na direção do alvo, suavemente.
+-- ============ UPDATE CAMERA (segue o player + mira no alvo) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
 
@@ -886,7 +880,7 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- Garante o follow padrão do Roblox (a câmera acompanha o player andando)
+    -- Mantém o follow padrão do Roblox
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
@@ -894,12 +888,11 @@ local function updateCamera()
     local aimPos = part.Position
     if part.Name == "Head" then aimPos = aimPos + Vector3.new(0, -0.3, 0) end
 
-    -- Usa a posição atual da câmera (que o Roblox já está movendo)
     local camPos = camera.CFrame.Position
     local dir = aimPos - camPos
     if dir.Magnitude < 0.1 then return end
 
-    -- Gira suave pra olhar o alvo, SEM travar a posição
+    -- Só gira suave, não trava posição
     local alvoCF = CFrame.lookAt(camPos, camPos + dir.Unit)
     camera.CFrame = camera.CFrame:Lerp(alvoCF, 0.35)
 
@@ -907,7 +900,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY ============
+-- ============ UPDATE BODY (anda pros lados normal — só gira visual) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -927,19 +920,45 @@ local function updateBody()
 
     hum.AutoRotate = false
 
+    -- SÓ gira o corpo pra olhar o alvo (visual).
+    -- NÃO toca em AssemblyLinearVelocity → você anda pra qualquer lado!
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
 
     if lookDir.Magnitude > 0.1 then
-        myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
-
-        local vel = myRoot.AssemblyLinearVelocity
-        local flatVel = Vector3.new(vel.X, 0, vel.Z)
-        if flatVel.Magnitude > 0.1 then
-            local novaVel = lookDir.Unit * flatVel.Magnitude
-            myRoot.AssemblyLinearVelocity = Vector3.new(novaVel.X, vel.Y, novaVel.Z)
-        end
+        local atual = myRoot.CFrame
+        myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
     end
+end
+
+-- ============ EMPURRÃO PRO ALVO (só no momento do dash/skill) ============
+local function empurrarProAlvo()
+    if not locked or not target or not target.Parent then return end
+    local char = player.Character
+    if not char then return end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    local part = getAimPart(target)
+    if not part then return end
+
+    -- Direção horizontal pro alvo
+    local dir = Vector3.new(
+        part.Position.X - myRoot.Position.X,
+        0,
+        part.Position.Z - myRoot.Position.Z
+    )
+    if dir.Magnitude < 0.1 then return end
+    dir = dir.Unit
+
+    -- Aplica empurrão leve na direção do alvo (não substitui a velocidade)
+    local vel = myRoot.AssemblyLinearVelocity
+    local forca = math.max(Vector3.new(vel.X, 0, vel.Z).Magnitude, VELOCIDADE_DASH)
+
+    myRoot.AssemblyLinearVelocity = Vector3.new(
+        dir.X * forca,
+        vel.Y,
+        dir.Z * forca
+    )
 end
 
 -- ============ ESP ============
@@ -1101,7 +1120,6 @@ function lockTarget(newTarget)
         end
     end)
 
-    -- MANTÉM Custom: a câmera segue o player normalmente
     cameraTypeAntigo = camera.CameraType
     camera.CameraType = Enum.CameraType.Custom
 
@@ -1128,7 +1146,6 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Body")
 
     pcall(function()
-        -- Sempre volta pro Custom (follow padrão do Roblox)
         camera.CameraType = Enum.CameraType.Custom
         if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
             camera.CameraType = cameraTypeAntigo
@@ -1168,6 +1185,7 @@ local comboCooldown = 0.8
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
 
+    -- Só força orientação (visual), não mexe em velocidade
     if locked then
         if input.KeyCode == Enum.KeyCode.ButtonX
            or input.KeyCode == Enum.KeyCode.ButtonA
@@ -1286,9 +1304,9 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.6 pronto!")
+print("✅ AIMLOCK DO EZEK v16.7 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("🎯 Lock estável — câmera segue o player + mira no alvo")
-print("🏃 Dash/skill vão pro alvo mesmo com animação")
+print("🚶 Anda pros lados normal com lock ativado")
+print("🎯 Câmera segue o player + mira no alvo")
 print("💀 Morte/respawn resetado")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
