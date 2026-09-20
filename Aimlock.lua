@@ -1,6 +1,5 @@
--- AIMLOCK DO EZEK v17.0 - MOBILE + CONSOLE + CONTROLE
--- MATA AlignPosition/AlignOrientation do PS que travam o boneco
--- Versão final com todas as correções aplicadas
+-- AIMLOCK DO EZEK v17.1 - MOBILE + CONSOLE + CONTROLE
+-- Desativa AimAssist e Combat nativos do PS (causadores do bug)
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -28,6 +27,27 @@ if _G.EZEK_AIMLOCK_LOADED then
     end)
 end
 _G.EZEK_AIMLOCK_LOADED = true
+
+-- ============ DESATIVA AIM ASSIST NATIVO DO PS ============
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            local ps = player and player.PlayerScripts or game.Players.LocalPlayer.PlayerScripts
+            local CU = ps:FindFirstChild("CU")
+            if not CU then return end
+            
+            local aimAssist = CU:FindFirstChild("AimAssist")
+            if aimAssist and aimAssist:IsA("LocalScript") and not aimAssist.Disabled then
+                aimAssist.Disabled = true
+            end
+            
+            local combat = CU:FindFirstChild("Combat")
+            if combat and combat:IsA("LocalScript") and not combat.Disabled then
+                combat.Disabled = true
+            end
+        end)
+    end
+end)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -278,7 +298,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v17.0"
+title.Text = "🎯 AIMLOCK DO EZEK v17.1"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1294,6 +1314,7 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v17.0 pronto!")
+print("✅ AIMLOCK DO EZEK v17.1 pronto!")
+print("🔥 AimAssist e Combat do PS desativados")
 print("🔥 Matador de AlignPosition/AlignOrientation ATIVO")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
