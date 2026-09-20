@@ -1,5 +1,5 @@
--- AIMLOCK DO EZEK v16.5 - MOBILE + CONSOLE + CONTROLE
--- Lock estável em PvP | Skill de respiração não buga | Boss + Dash + Morte corrigidos
+-- AIMLOCK DO EZEK v16.6 - MOBILE + CONSOLE + CONTROLE
+-- Lock estável em PvP | Trava corpo ignorando animações | Dash e skill pro alvo
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -40,8 +40,8 @@ local camera = Workspace.CurrentCamera
 -- ============ CONFIG ============
 local DISTANCIA_CAMERA = 12
 local VELOCIDADE_DASH = 30
-local VELOCIDADE_SKILL = 40          -- acima disso = skill/arrasto
-local VELOCIDADE_Y_SKILL = 10        -- acima disso = knockback vertical
+local VELOCIDADE_SKILL = 40
+local VELOCIDADE_Y_SKILL = 10
 local RAIO_DETECCAO_BOSS = 50
 local COOLDOWN_BOSS = 1.5
 
@@ -145,7 +145,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.5"
+title.Text = "🎯 AIMLOCK DO EZEK v16.6"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -241,6 +241,74 @@ end
 
 local lockBtn = criarBotao("🔓 LOCK: OFF", 70)
 local espBtn  = criarBotao("👁️ ESP: OFF",  120)
+
+-- ============ FUNÇÕES AUXILIARES (declaradas cedo) ============
+local getTipoAlvo
+
+local function getHealth(model)
+    if not model then return nil, nil, nil end
+
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health > 0 then
+        return hum.Health, hum.MaxHealth, "Humanoid"
+    end
+
+    local atributos = {"Health", "HP", "health", "CurrentHealth", "hp"}
+    for _, nome in ipairs(atributos) do
+        local v = model:GetAttribute(nome)
+        if v and type(v) == "number" then
+            local maxV = model:GetAttribute("MaxHealth")
+                      or model:GetAttribute("MaxHP")
+                      or model:GetAttribute("maxHealth")
+                      or 100
+            return v, maxV, "Attribute"
+        end
+    end
+
+    for _, nome in ipairs({"Health", "HP", "health"}) do
+        local hpVal = model:FindFirstChild(nome, true)
+        if hpVal and hpVal:IsA("NumberValue") then
+            return hpVal.Value, 100, "NumberValue"
+        end
+    end
+
+    return nil, nil, nil
+end
+
+local function getAimPart(model)
+    if not model then return nil end
+    return model:FindFirstChild("Head")
+        or model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("UpperTorso")
+        or model:FindFirstChild("Torso")
+        or model:FindFirstChild("Root")
+        or model:FindFirstChild("Body")
+        or model.PrimaryPart
+end
+
+getTipoAlvo = function(model)
+    if not model then return "monstros" end
+
+    if Players:GetPlayerFromCharacter(model) then
+        return "players"
+    end
+
+    local n = string.lower(model.Name)
+    if n:find("dummy") or n:find("training") or n:find("test")
+       or n:find("practice") or n:find("target") then
+        return "dummies"
+    end
+
+    local parent = model.Parent
+    if parent then
+        local pn = string.lower(parent.Name)
+        if pn:find("dummy") or pn:find("training") or pn:find("test") or pn:find("practice") then
+            return "dummies"
+        end
+    end
+
+    return "monstros"
+end
 
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
@@ -555,72 +623,7 @@ local function setAutoRotate(state)
     end)
 end
 
--- ============ GET HEALTH ============
-local function getHealth(model)
-    if not model then return nil, nil, nil end
-
-    local hum = model:FindFirstChildOfClass("Humanoid")
-    if hum and hum.Health > 0 then
-        return hum.Health, hum.MaxHealth, "Humanoid"
-    end
-
-    local atributos = {"Health", "HP", "health", "CurrentHealth", "hp"}
-    for _, nome in ipairs(atributos) do
-        local v = model:GetAttribute(nome)
-        if v and type(v) == "number" then
-            local maxV = model:GetAttribute("MaxHealth")
-                      or model:GetAttribute("MaxHP")
-                      or model:GetAttribute("maxHealth")
-                      or 100
-            return v, maxV, "Attribute"
-        end
-    end
-
-    for _, nome in ipairs({"Health", "HP", "health"}) do
-        local hpVal = model:FindFirstChild(nome, true)
-        if hpVal and hpVal:IsA("NumberValue") then
-            return hpVal.Value, 100, "NumberValue"
-        end
-    end
-
-    return nil, nil, nil
-end
-
-local function getAimPart(model)
-    if not model then return nil end
-    return model:FindFirstChild("Head")
-        or model:FindFirstChild("HumanoidRootPart")
-        or model:FindFirstChild("UpperTorso")
-        or model:FindFirstChild("Torso")
-        or model:FindFirstChild("Root")
-        or model:FindFirstChild("Body")
-        or model.PrimaryPart
-end
-
-local function getTipoAlvo(model)
-    if not model then return "monstros" end
-
-    if Players:GetPlayerFromCharacter(model) then
-        return "players"
-    end
-
-    local n = string.lower(model.Name)
-    if n:find("dummy") or n:find("training") or n:find("test")
-       or n:find("practice") or n:find("target") then
-        return "dummies"
-    end
-
-    local parent = model.Parent
-    if parent then
-        local pn = string.lower(parent.Name)
-        if pn:find("dummy") or pn:find("training") or pn:find("test") or pn:find("practice") then
-            return "dummies"
-        end
-    end
-
-    return "monstros"
-end
-
+-- ============ CANDIDATOS ============
 local function isValidTarget(model)
     if not model or not model.Parent then return false end
     if model == player.Character then return false end
@@ -682,84 +685,7 @@ local function getCandidatesCacheado()
     return candidatosCache
 end
 
--- ============ DETECÇÃO DE BOSS (COM COOLDOWN) ============
-local function temBossPerto()
-    local char = player.Character
-    if not char then return false end
-    local myRoot = char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return false end
-
-    if bossDetectado and (tick() - ultimaDeteccaoBoss) < COOLDOWN_BOSS then
-        return true
-    end
-
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj:IsA("Model") and obj ~= char then
-            local isPlayer = Players:GetPlayerFromCharacter(obj)
-            if not isPlayer then
-                local nome = string.lower(obj.Name)
-                if nome:find("boss") or nome:find("raid") or nome:find("worldboss")
-                   or nome:find("dungeonboss") or nome:find("megaboss")
-                   or nome == "demon king" or nome:find("demon king")
-                   or nome:find("demon lord") or nome:find("demonlord") then
-                    local objRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
-                    if objRoot then
-                        local dist = (objRoot.Position - myRoot.Position).Magnitude
-                        if dist < RAIO_DETECCAO_BOSS then
-                            bossDetectado = true
-                            ultimaDeteccaoBoss = tick()
-                            return true
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    bossDetectado = false
-    return false
-end
-
--- ============ DETECÇÃO DE CÂMERA DO JOGO ============
-local function jogoControlandoCamera()
-    local cfAtual = camera.CFrame
-
-    if cameraUltimaCFrame then
-        local diff = (cfAtual.Position - cameraUltimaCFrame.Position).Magnitude
-        if diff > 20 then
-            ultimaMudancaCamera = tick()
-        end
-    end
-
-    cameraUltimaCFrame = cfAtual
-
-    if tick() - ultimaMudancaCamera < 1 then
-        return true
-    end
-
-    return false
-end
-
--- ============ VERIFICA SE TÁ LEVANDO SKILL ============
-local function levandoSkill()
-    local char = player.Character
-    if not char then return false end
-    local myRoot = char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return false end
-
-    local vel = myRoot.AssemblyLinearVelocity
-    local velTotal = vel.Magnitude
-
-    -- Se velocidade total tá alta = arrasto de skill
-    if velTotal > VELOCIDADE_SKILL then return true end
-
-    -- Se tá subindo no ar rápido = knockback vertical
-    if vel.Y > VELOCIDADE_Y_SKILL then return true end
-
-    return false
-end
-
--- ============ FIND TARGET (SÓ CENTRO - 20°) ============
+-- ============ FIND TARGET ============
 local function findTarget()
     local character = player.Character
     if not character then return nil end
@@ -916,7 +842,24 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ UPDATE CAMERA (COM PROTEÇÕES) ============
+-- ============ FORÇA ORIENTAÇÃO (usado no lock e no input do dash) ============
+local function forcarOrientacao()
+    if not locked or not target or not target.Parent then return end
+    local char = player.Character
+    if not char then return end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    local part = getAimPart(target)
+    if not part then return end
+
+    local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
+    local lookDir = flat - myRoot.Position
+    if lookDir.Magnitude > 0.1 then
+        myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
+    end
+end
+
+-- ============ UPDATE CAMERA (sem pausas) ============
 local function updateCamera()
     if not locked or not target or not target.Parent then return end
 
@@ -932,17 +875,11 @@ local function updateCamera()
     local myRoot = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
     if not myRoot then return end
 
-    -- NÃO MEXE SE TÁ LEVANDO SKILL
-    if levandoSkill() then return end
-
     local hp = getHealth(target)
     if not hp or hp <= 0 then
         task.defer(unlockTarget)
         return
     end
-
-    if temBossPerto() then return end
-    if jogoControlandoCamera() then return end
 
     local part = getAimPart(target)
     if not part then return end
@@ -964,7 +901,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (COM PROTEÇÕES) ============
+-- ============ UPDATE BODY (sem pausas + trava contra animação) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -974,36 +911,35 @@ local function updateBody()
 
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
-
-    -- SE TIVER MORTO, NÃO FORÇA
     if hum.Health <= 0 then return end
-
-    -- SE TÁ LEVANDO SKILL, NÃO FORÇA
-    if levandoSkill() then return end
 
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
 
-    if temBossPerto() then return end
-
-    -- SE TIVER ANDANDO, NÃO FORÇA
-    if hum.MoveDirection.Magnitude > 0.1 then return end
-
-    -- SE TIVER EM DASH, NÃO FORÇA
-    local velocidade = myRoot.AssemblyLinearVelocity.Magnitude
-    if velocidade > VELOCIDADE_DASH then return end
-
     local part = getAimPart(target)
     if not part then return end
 
+    -- Força AutoRotate OFF toda frame (animações reativam)
+    hum.AutoRotate = false
+
+    -- Trava corpo SEMPRE olhando pro alvo, mesmo andando/dashando/skill
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
 
     if lookDir.Magnitude > 0.1 then
         myRoot.CFrame = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
+
+        -- Redireciona velocidade horizontal pro alvo (dash/skill vão pro alvo)
+        local vel = myRoot.AssemblyLinearVelocity
+        local flatVel = Vector3.new(vel.X, 0, vel.Z)
+        if flatVel.Magnitude > 0.1 then
+            local novaVel = lookDir.Unit * flatVel.Magnitude
+            myRoot.AssemblyLinearVelocity = Vector3.new(novaVel.X, vel.Y, novaVel.Z)
+        end
     end
 end
 
+-- ============ ESP ============
 local function createESP(model)
     if espHighlights[model] then return end
     local root = getAimPart(model)
@@ -1090,7 +1026,10 @@ local function updateESP()
                 local tName = model.Name
                 local tag = "🤖"
                 local tPlr = Players:GetPlayerFromCharacter(model)
-                if tPlr then tName = tPlr.Name tag = "👤" end
+                if tPlr then
+                    tName = tPlr.Name
+                    tag = "👤"
+                end
                 local pct = (hp / math.max(maxHp or 100, 1)) * 100
                 local col = Color3.fromRGB(0, 255, 0)
                 if pct < 30 then col = Color3.fromRGB(255, 0, 0)
@@ -1159,13 +1098,18 @@ function lockTarget(newTarget)
         end
     end)
 
+    -- Guarda e força Scriptable
     cameraTypeAntigo = camera.CameraType
+    camera.CameraType = Enum.CameraType.Scriptable
+
+    -- Força orientação imediatamente ao travar
+    forcarOrientacao()
 
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:BindToRenderStep("EZEK_Cam", Enum.RenderPriority.Camera.Value + 1, updateCamera)
 
     RunService:UnbindFromRenderStep("EZEK_Body")
-    RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 1, updateBody)
+    RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 10, updateBody)
 
     atualizarStatus()
 end
@@ -1207,7 +1151,7 @@ end
 lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
--- ============ INPUTS (R1+R2 = Lock | L1+L2 = ESP) ============
+-- ============ INPUTS ============
 local r1Pressionado = false
 local r2Pressionado = false
 local l1Pressionado = false
@@ -1215,10 +1159,25 @@ local l2Pressionado = false
 
 local ultimoToggleLock = 0
 local ultimoToggleESP = 0
-local comboCooldown = 0.5
+local comboCooldown = 0.8
 
+-- Força orientação antes de inputs de dash/skill
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
+
+    -- Força orientação antes de dash/skill (garante direção correta)
+    if locked then
+        if input.KeyCode == Enum.KeyCode.ButtonX
+           or input.KeyCode == Enum.KeyCode.ButtonA
+           or input.KeyCode == Enum.KeyCode.LeftShift
+           or input.KeyCode == Enum.KeyCode.Q
+           or input.KeyCode == Enum.KeyCode.ButtonR1
+           or input.KeyCode == Enum.KeyCode.ButtonR2
+           or input.KeyCode == Enum.KeyCode.ButtonL1
+           or input.KeyCode == Enum.KeyCode.ButtonL2 then
+            forcarOrientacao()
+        end
+    end
 
     if input.KeyCode == Enum.KeyCode.Q then
         toggleLock()
@@ -1304,7 +1263,6 @@ player.CharacterAdded:Connect(function(newChar)
     end)
 
     local hum = newChar:WaitForChild("Humanoid", 5)
-    local myRoot = newChar:WaitForChild("HumanoidRootPart", 5)
 
     if hum then
         hum.AutoRotate = true
@@ -1328,12 +1286,9 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.5 pronto!")
+print("✅ AIMLOCK DO EZEK v16.6 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
-print("🎥 Sobrescreve qualquer CameraType")
-print("🏃 Dash não buga")
+print("🎯 Lock não pisca mais — fica travado até você desligar")
+print("🏃 Dash/skill vão pro alvo mesmo com animação")
 print("💀 Morte/respawn resetado")
-print("👹 Boss detectado com cooldown")
-print("⚔️ PvP estável")
-print("🌀 Skill de respiração NÃO buga (arrasto + knockback)")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
