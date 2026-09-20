@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.0 - CORPO SEGUE CÂMERA + DEBUG ÂNGULO
+-- AIMLOCK DO EZEK v18.1 - CORPO SEGUE CÂMERA + DASH FUNCIONANDO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -64,34 +64,20 @@ local function estaStunado()
     return dif >= 0 and dif < STUN_DURACAO
 end
 
--- ============ MATA ALIGN MOVERS ============
+-- ============ MATA ALIGN MOVERS (VOLTOU PRA v17.8) ============
 local function matarMovers()
     local char = player.Character
     if not char then return end
     for _, obj in ipairs(char:GetDescendants()) do
         if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")
            or obj:IsA("BodyGyro") or obj:IsA("BodyPosition")
-           or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity")
-           or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
-            pcall(function()
-                if locked then
-                    if obj.Enabled then obj.Enabled = false end
-                    obj:Destroy()
-                else
-                    if obj:IsA("LinearVelocity") then
-                        local v = obj.Velocity
-                        if v and v.Magnitude > 200 then
-                            if obj.Enabled then obj.Enabled = false end
-                            obj:Destroy()
-                        end
-                    end
-                end
-            end)
+           or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") then
+            pcall(function() obj:Destroy() end)
         end
     end
 end
 
-task.spawn(function() while task.wait(0.03) do pcall(matarMovers) end end)
+task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
 
 -- ============ MONITOR DE HIT ============
 task.spawn(function()
@@ -188,7 +174,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.0"
+title.Text = "🎯 EZEK v18.1"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1074,6 +1060,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.0!")
+print("✅ AIMLOCK DO EZEK v18.1!")
 print("📐 Debug de ângulo ativo no painel")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
