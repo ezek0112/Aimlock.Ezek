@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v17.6 - RESET PÓS-MORTE SEM AUTO-SABOTAGEM
+-- AIMLOCK DO EZEK v17.8 - CÂMERA SEGUE O BONECO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -47,7 +47,7 @@ local HIT_JANELA = 0.6
 local STUN_DURACAO = 1.5
 local espUltimoScan = 0
 local espUltimaLabel = 0
-local DEVE_RESETAR_ATE = 0   -- 🔥 MOVIDA PRO INÍCIO
+local DEVE_RESETAR_ATE = 0
 
 -- ============ DETECÇÃO VIA Last_Stunned ============
 local function estaStunado()
@@ -167,7 +167,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v17.6"
+title.Text = "🎯 EZEK v17.8"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -622,54 +622,54 @@ local function resetarCamera()
     end)
 end
 
--- ============ UPDATE CÂMERA ============
-local ultimaForcada = 0
+-- ============ UPDATE CÂMERA (VERSÃO FINAL - SEGUE O BONECO) ============
 local function updateCamera()
-    -- 🔥 BLOQUEIA durante janela pós-morte (não deixa o script se sabotar)
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
-    if Workspace.CurrentCamera and camera ~= Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
+    
+    -- 🔥 Sempre pega a câmera atual
+    camera = Workspace.CurrentCamera
+    if not camera then return end
+    
+    -- 🔥 Pega o personagem ATUAL
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then task.defer(unlockTarget); return end
+    if not hum or hum.Health <= 0 then return end
     local myRoot = char:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
+    
     local part = getAimPart(target)
     if not part then return end
 
-    if tick() - ultimoHitTime < HIT_JANELA then
-        if camera.CameraType == Enum.CameraType.Scriptable then
-            pcall(function() camera.CameraType = Enum.CameraType.Custom end)
-        end
-        return
-    end
+    -- 🔥 PEGA POSIÇÃO ATUALIZADA DO BONECO
+    local bonecoPos = myRoot.Position
+    local alvoPos = part.Position
+    if part.Name == "Head" then alvoPos = alvoPos + Vector3.new(0, -0.3, 0) end
 
-    local agora = tick()
-    local espera = IS_MOBILE and 1.5 or 0.5
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        if agora - ultimaForcada > espera then
-            camera.CameraType = Enum.CameraType.Scriptable
-            ultimaForcada = agora
-        else return end
-    end
-
-    local aimPos = part.Position
-    if part.Name == "Head" then aimPos = aimPos + Vector3.new(0, -0.3, 0) end
-    local eyePos = myRoot.Position + Vector3.new(0, 3.5, 0)
-    local dir = aimPos - eyePos
+    -- 🔥 CALCULA A CÂMERA EM TEMPO REAL
+    local eyePos = bonecoPos + Vector3.new(0, 3.5, 0)
+    local dir = alvoPos - eyePos
     if dir.Magnitude < 0.1 then return end
     dir = dir.Unit
+
     local camPos = eyePos - dir * DISTANCIA_CAMERA
-    camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(camPos, aimPos), 0.4)
-    camera.Focus = CFrame.new(aimPos)
+    
+    -- 🔥 FORÇA SCRIPTABLE SEMPRE
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
+    end
+    
+    -- 🔥 SETA CÂMERA DIRETO (segue o boneco sem lerp)
+    camera.CFrame = CFrame.lookAt(camPos, alvoPos)
+    camera.Focus = CFrame.new(alvoPos)
+    
     updateInfo()
     atualizarHPBar()
 end
 
 -- ============ UPDATE CORPO ============
 local function updateBody()
-    -- 🔥 BLOQUEIA durante janela pós-morte
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -809,6 +809,7 @@ local function toggleESP()
 end
 
 function lockTarget(novoAlvo)
+    DEVE_RESETAR_ATE = 0
     matarMovers()
     target = novoAlvo
     locked = true
@@ -855,6 +856,7 @@ function unlockTarget()
 end
 
 local function toggleLock()
+    DEVE_RESETAR_ATE = 0
     if locked then unlockTarget()
     else
         local t = acharAlvo()
@@ -896,7 +898,7 @@ end)
 
 -- ============ MORTE E RESPAWN ============
 player.CharacterRemoving:Connect(function()
-    DEVE_RESETAR_ATE = tick() + 5  -- 🔥 ATIVA JANELA
+    DEVE_RESETAR_ATE = tick() + 3
     locked = false
     target = nil
     pcall(function()
@@ -915,8 +917,8 @@ player.CharacterRemoving:Connect(function()
 end)
 
 player.CharacterAdded:Connect(function(newChar)
-    DEVE_RESETAR_ATE = tick() + 5  -- 🔥 RENOVA JANELA
     task.wait(0.3)
+    DEVE_RESETAR_ATE = 0   -- 🔥 ZERA PRA PODER USAR DE NOVO
     locked = false
     target = nil
     if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
@@ -940,7 +942,7 @@ task.spawn(function()
         if char then
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health <= 0 then
-                DEVE_RESETAR_ATE = tick() + 5
+                DEVE_RESETAR_ATE = tick() + 3
             end
         end
         
@@ -986,6 +988,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v17.6!")
-print("🔥 updateCamera/updateBody BLOQUEADOS durante janela pós-morte")
+print("✅ AIMLOCK DO EZEK v17.8!")
+print("🔥 Câmera segue o boneco em TEMPO REAL")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
