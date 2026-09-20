@@ -1,6 +1,6 @@
--- AIMLOCK DO EZEK v16.11 - MOBILE + CONSOLE + CONTROLE
+-- AIMLOCK DO EZEK v16.12 - MOBILE + CONSOLE + CONTROLE
 -- Câmera segue o player | Anda pros lados normal | Mira no alvo
--- CORRIGIDO: câmera não trava mais após morrer/respawnar
+-- CORRIGIDO: câmera mobile + lock-on nativo do Project Slayers
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -38,15 +38,55 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- 🔥 Mantém a referência da câmera sempre atualizada (respawn troca a ref)
+-- ============ CONFIG ============
+local DISTANCIA_CAMERA = 12
+local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- ============ RESET DE CÂMERA (MOBILE + PC) ============
+local function resetarCamera()
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum then
+                    cam.CameraSubject = hum
+                elseif root then
+                    cam.CameraSubject = root
+                end
+            end
+        end
+        player.CameraMode = Enum.CameraMode.Classic
+    end)
+end
+
+-- 🔥 Mantém a referência da câmera sempre atualizada
 Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     if Workspace.CurrentCamera then
         camera = Workspace.CurrentCamera
+        resetarCamera()
     end
 end)
 
--- ============ CONFIG ============
-local DISTANCIA_CAMERA = 12
+-- 🔥 Detecta respawn via Humanoid.Died (mais confiável no mobile)
+task.spawn(function()
+    while task.wait(1) do
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and not hum:GetAttribute("EZEK_HOOKED") then
+                hum:SetAttribute("EZEK_HOOKED", true)
+                hum.Died:Connect(function()
+                    task.wait(0.2)
+                    resetarCamera()
+                end)
+            end
+        end
+    end
+end)
 
 -- ============ ESTADO ============
 local locked = false
@@ -143,7 +183,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.11"
+title.Text = "🎯 AIMLOCK DO EZEK v16.12"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -889,6 +929,21 @@ local function forcarOrientacao()
     return
 end
 
+-- ============ DESATIVA LOCK-ON NATIVO DO PROJECT SLAYERS ============
+local function desativarLockNativo()
+    pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then return end
+        local nomes = {"LockOnGui", "TargetGui", "CombatGui", "LockGui", "TargetLockGui"}
+        for _, nome in ipairs(nomes) do
+            local gui = playerGui:FindFirstChild(nome)
+            if gui and gui:IsA("ScreenGui") and gui.Enabled then
+                gui.Enabled = false
+            end
+        end
+    end)
+end
+
 -- ============ UPDATE CAMERA ============
 local ultimaForcadaCamera = 0
 local function updateCamera()
@@ -921,8 +976,10 @@ local function updateCamera()
     if not part then return end
 
     local agora = tick()
+    local tempoEspera = IS_MOBILE and 1.5 or 0.5
+
     if camera.CameraType ~= Enum.CameraType.Scriptable then
-        if agora - ultimaForcadaCamera > 0.5 then
+        if agora - ultimaForcadaCamera > tempoEspera then
             camera.CameraType = Enum.CameraType.Scriptable
             ultimaForcadaCamera = agora
         else
@@ -1136,6 +1193,9 @@ local function toggleESP()
 end
 
 function lockTarget(newTarget)
+    -- 🔥 Desativa lock-on nativo do Project Slayers (briga com o nosso)
+    desativarLockNativo()
+
     target = newTarget
     locked = true
     lockBtn.Text = "🔒 LOCK: ON"
@@ -1180,13 +1240,13 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
 
+    resetarCamera()
+
     pcall(function()
-        if Workspace.CurrentCamera then
-            camera = Workspace.CurrentCamera
-            camera.CameraType = Enum.CameraType.Custom
-        end
         if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
-            camera.CameraType = cameraTypeAntigo
+            if Workspace.CurrentCamera then
+                Workspace.CurrentCamera.CameraType = cameraTypeAntigo
+            end
         end
         if cameraModeAntigo then
             player.CameraMode = cameraModeAntigo
@@ -1304,13 +1364,7 @@ player.CharacterRemoving:Connect(function()
         RunService:UnbindFromRenderStep("EZEK_Body")
     end)
 
-    -- 🔥 Devolve câmera pro Roblox IMEDIATAMENTE
-    pcall(function()
-        if Workspace.CurrentCamera then
-            Workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-        end
-        player.CameraMode = Enum.CameraMode.Classic
-    end)
+    resetarCamera()
 
     pcall(function()
         if lockBtn then
@@ -1337,11 +1391,7 @@ player.CharacterAdded:Connect(function(newChar)
         camera = Workspace.CurrentCamera
     end
 
-    -- 🔥 Garante que a câmera volta pro Roblox controlar
-    pcall(function()
-        camera.CameraType = Enum.CameraType.Custom
-        player.CameraMode = Enum.CameraMode.Classic
-    end)
+    resetarCamera()
 
     pcall(function()
         if lockBtn then
@@ -1370,11 +1420,12 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.11 pronto!")
+print("✅ AIMLOCK DO EZEK v16.12 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
+print("📱 Modo: " .. (IS_MOBILE and "MOBILE" or "PC/CONSOLE"))
 print("🚶 Anda normal — script não interfere no movimento")
 print("🎯 Para → gira pro alvo automaticamente")
 print("🛡️ Stun/hit do boss → solta controle e devolve")
 print("📷 Câmera reseta corretamente após morte/respawn")
-print("💀 Morte/respawn resetado")
+print("⚔️ Lock-on nativo do Project Slayers é desativado")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
