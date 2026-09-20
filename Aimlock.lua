@@ -1,5 +1,6 @@
--- AIMLOCK DO EZEK v16.15 - MOBILE + CONSOLE + CONTROLE
--- Solta câmera + AutoRotate quando toma hit; monitor contínuo agressivo
+-- AIMLOCK DO EZEK v17.0 - MOBILE + CONSOLE + CONTROLE
+-- MATA AlignPosition/AlignOrientation do PS que travam o boneco
+-- Versão final com todas as correções aplicadas
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -72,6 +73,42 @@ local ultimoHitTime = 0
 local vidaAnterior = 100
 local HIT_JANELA = 0.6
 
+-- ============ MATADOR DE ALIGN MOVERS ============
+local moversMortos = 0
+
+local function matarAlignMovers()
+    local char = player.Character
+    if not char then return end
+    
+    for _, obj in ipairs(char:GetDescendants()) do
+        if obj:IsA("AlignPosition") 
+           or obj:IsA("AlignOrientation") 
+           or obj:IsA("BodyGyro") 
+           or obj:IsA("BodyPosition")
+           or obj:IsA("BodyVelocity") 
+           or obj:IsA("BodyAngularVelocity") then
+            if not obj:GetAttribute("EZEK_MOVER") then
+                pcall(function() obj:Destroy() end)
+                moversMortos = moversMortos + 1
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while task.wait(0.1) do
+        pcall(matarAlignMovers)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.05) do
+        if locked then
+            pcall(matarAlignMovers)
+        end
+    end
+end)
+
 -- ============ RESET CÂMERA ============
 local function resetarCamera()
     pcall(function()
@@ -138,7 +175,6 @@ task.spawn(function()
             end
         end
 
-        -- Solta AutoRotate se tomou hit
         if tick() - ultimoHitTime < HIT_JANELA then
             if hum.AutoRotate ~= true then
                 hum.AutoRotate = true
@@ -242,7 +278,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.15"
+title.Text = "🎯 AIMLOCK DO EZEK v17.0"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -696,23 +732,6 @@ local function setAutoRotate(state)
     end)
 end
 
--- ============ KILL LOCK NATIVO ============
-local function matarLockNativo()
-    pcall(function()
-        local pg = player:FindFirstChild("PlayerGui")
-        if not pg then return end
-        for _, gui in ipairs(pg:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Enabled then
-                local n = string.lower(gui.Name)
-                if n:find("lock") or n:find("target") or n:find("combat") 
-                   or n:find("aim") or n:find("focus") then
-                    gui.Enabled = false
-                end
-            end
-        end
-    end)
-end
-
 -- ============ CANDIDATOS ============
 local function isValidTarget(model)
     if not model or not model.Parent then return false end
@@ -922,7 +941,6 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- 🔥 TOMOU HIT: devolve câmera pro Roblox e espera
     if tick() - ultimoHitTime < HIT_JANELA then
         if camera.CameraType == Enum.CameraType.Scriptable then
             pcall(function() camera.CameraType = Enum.CameraType.Custom end)
@@ -964,6 +982,9 @@ local function updateBody()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
     if hum.Health <= 0 then return end
+
+    matarAlignMovers()
+
     if estaSobEfeitoDeSkill(char, hum) then
         if hum.AutoRotate ~= true then hum.AutoRotate = true end
         return
@@ -1113,7 +1134,7 @@ local function toggleESP()
 end
 
 function lockTarget(newTarget)
-    matarLockNativo()
+    matarAlignMovers()
     target = newTarget
     locked = true
     lockBtn.Text = "🔒 LOCK: ON"
@@ -1273,5 +1294,6 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.15 pronto!")
+print("✅ AIMLOCK DO EZEK v17.0 pronto!")
+print("🔥 Matador de AlignPosition/AlignOrientation ATIVO")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
