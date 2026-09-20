@@ -1,5 +1,6 @@
--- AIMLOCK DO EZEK v16.8 - MOBILE + CONSOLE + CONTROLE
+-- AIMLOCK DO EZEK v16.9 - MOBILE + CONSOLE + CONTROLE
 -- Câmera segue o player | Anda pros lados normal | Mira no alvo
+-- CORRIGIDO: anti-bug em animação de boss / stun / skill no corpo
 
 -- ============ PROTEÇÃO ============
 local PROTECAO = {}
@@ -135,7 +136,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -150, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 AIMLOCK DO EZEK v16.8"
+title.Text = "🎯 AIMLOCK DO EZEK v16.9"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -832,22 +833,55 @@ local function removerHPBarDoAlvo()
     end
 end
 
--- ============ FORÇA ORIENTAÇÃO (visual) ============
-local function forcarOrientacao()
-    if not locked or not target or not target.Parent then return end
-    local char = player.Character
-    if not char then return end
-    local myRoot = char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-    local part = getAimPart(target)
-    if not part then return end
+-- ============ DETECÇÃO DE STUN / SKILL NO CORPO ============
+local function estaEmStunOuSkill(char, hum)
+    if not char or not hum then return false end
 
-    local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
-    local lookDir = flat - myRoot.Position
-    if lookDir.Magnitude > 0.1 then
-        local atual = myRoot.CFrame
-        myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
+    -- Estados do Humanoid que indicam que a engine/boss controla
+    local estado = hum:GetState()
+    if estado == Enum.HumanoidStateType.Physics
+       or estado == Enum.HumanoidStateType.FallingDown
+       or estado == Enum.HumanoidStateType.Ragdoll
+       or estado == Enum.HumanoidStateType.PlatformStanding then
+        return true
     end
+
+    if hum.PlatformStand == true then return true end
+
+    -- Atributos usados por vários jogos do Roblox pra marcar stun
+    local atributos = {"Stunned", "Stun", "Knocked", "Knockback", "Hit",
+                       "Attacking", "UsingSkill", "Casting", "Busy", "Locked"}
+    for _, nome in ipairs(atributos) do
+        if hum:GetAttribute(nome) or char:GetAttribute(nome) then
+            return true
+        end
+    end
+
+    -- Detecta animação de skill do boss (não walk/idle/run/fall/jump)
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if animator then
+        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+            local id = track.Animation and track.Animation.AnimationId or ""
+            if id ~= "" then
+                local lower = string.lower(id)
+                local isLocomotion = lower:find("walk") or lower:find("idle")
+                    or lower:find("run") or lower:find("fall")
+                    or lower:find("jump") or lower:find("swim")
+                    or lower:find("climb")
+                if not isLocomotion and track.Priority ~= Enum.AnimationPriority.Core then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+-- ============ FORÇA ORIENTAÇÃO (helper usado no input) ============
+local function forcarOrientacao()
+    -- Mantido só pra compatibilidade — updateBody faz o trabalho com proteção
+    return
 end
 
 -- ============ UPDATE CAMERA (câmera atrás do player olhando o alvo) ============
@@ -875,7 +909,6 @@ local function updateCamera()
     local part = getAimPart(target)
     if not part then return end
 
-    -- Scriptable pra controlar 100% a câmera
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
@@ -883,7 +916,6 @@ local function updateCamera()
     local aimPos = part.Position
     if part.Name == "Head" then aimPos = aimPos + Vector3.new(0, -0.3, 0) end
 
-    -- Câmera SEMPRE atrás do player (segue ele andando) olhando o alvo
     local eyePos = myRoot.Position + Vector3.new(0, 3.5, 0)
     local dir = aimPos - eyePos
     if dir.Magnitude < 0.1 then return end
@@ -898,7 +930,7 @@ local function updateCamera()
     atualizarHPBarDoAlvo()
 end
 
--- ============ UPDATE BODY (anda pros lados normal — só gira visual) ============
+-- ============ UPDATE BODY (CORRIGIDO — não briga com skill do boss) ============
 local function updateBody()
     if not locked or not target or not target.Parent then return end
     local char = player.Character
@@ -910,6 +942,11 @@ local function updateBody()
     if not hum then return end
     if hum.Health <= 0 then return end
 
+    -- 🔥 CORREÇÃO: se está em stun/skill/ragdoll, NÃO mexe no CFrame
+    if estaEmStunOuSkill(char, hum) then
+        return
+    end
+
     local hp = getHealth(target)
     if not hp or hp <= 0 then return end
 
@@ -918,12 +955,13 @@ local function updateBody()
 
     hum.AutoRotate = false
 
+    -- 🔥 CORREÇÃO: lerp suave pra não dar flicker nem brigar com animação
     local flat = Vector3.new(part.Position.X, myRoot.Position.Y, part.Position.Z)
     local lookDir = flat - myRoot.Position
 
-    if lookDir.Magnitude > 0.1 then
-        local atual = myRoot.CFrame
-        myRoot.CFrame = CFrame.lookAt(atual.Position, atual.Position + lookDir.Unit)
+    if lookDir.Magnitude > 0.5 then
+        local alvo = CFrame.lookAt(myRoot.Position, myRoot.Position + lookDir.Unit)
+        myRoot.CFrame = myRoot.CFrame:Lerp(alvo, 0.35)
     end
 end
 
@@ -1086,11 +1124,9 @@ function lockTarget(newTarget)
         end
     end)
 
-    -- Guarda configs antigas pra devolver no unlock
     cameraTypeAntigo = camera.CameraType
     cameraModeAntigo = player.CameraMode
 
-    -- Scriptable pra controlar 100% a câmera (atrás do player olhando alvo)
     camera.CameraType = Enum.CameraType.Scriptable
 
     forcarOrientacao()
@@ -1116,13 +1152,25 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Body")
 
     pcall(function()
-        -- Devolve pro controle do Roblox (follow padrão)
         camera.CameraType = Enum.CameraType.Custom
         if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
             camera.CameraType = cameraTypeAntigo
         end
         if cameraModeAntigo then
             player.CameraMode = cameraModeAntigo
+        end
+    end)
+
+    -- 🔥 CORREÇÃO: reseta orientação do HRP baseado no camera look
+    pcall(function()
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root and camera then
+            local look = camera.CFrame.LookVector
+            local flat = Vector3.new(look.X, 0, look.Z)
+            if flat.Magnitude > 0.1 then
+                root.CFrame = CFrame.lookAt(root.Position, root.Position + flat.Unit)
+            end
         end
     end)
 
@@ -1277,9 +1325,10 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v16.8 pronto!")
+print("✅ AIMLOCK DO EZEK v16.9 pronto!")
 print("🔒 Chave: " .. PROTECAO.chave)
 print("🎥 Câmera atrás do player, seguindo ele + olhando o alvo")
 print("🚶 Anda pra frente/lados/trás normalmente")
+print("🛡️ Anti-bug: detecta stun/skill do boss e não trava o corpo")
 print("💀 Morte/respawn resetado")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
