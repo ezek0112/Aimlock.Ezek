@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v24 - ATUALIZA ALVO AO ATIVAR LOCK
+-- AIMLOCK DO EZEK v25 DEFINITIVO - RESET COMPLETO + HP NA BARRA
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -48,10 +48,8 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
--- 🔥 Só contagem
 local moversContagem = 0
 
--- 🔥 Expõe pra debug externo
 _G.EZEK_LOCKED = false
 _G.EZEK_TARGET = nil
 
@@ -187,7 +185,7 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 CONTA MOVERS (só pra debug)
+-- 🔥 CONTA MOVERS
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.2) do
@@ -348,10 +346,10 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v24"
+title.Text = "🎯 EZEK v25 DEFINITIVO"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
-title.TextSize = 15
+title.TextSize = 13
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
@@ -758,37 +756,29 @@ local function updateInfo()
     infoLabel.Text = string.format("%s\n%d/%d (%d%%) 📏 %dm", tName, math.floor(hp), math.floor(maxHp or 100), pct, dist)
 end
 
+-- ══════════════════════════════════════════════════
+-- 🔥 CRIAR HP BAR (COM NÚMERO DE VIDA)
+-- ══════════════════════════════════════════════════
 local function criarHPBar(model)
     if hpBarAlvo and hpBarAlvo.Parent then hpBarAlvo:Destroy() end
     if not model or not model.Parent then return end
     local root = getAimPart(model)
     if not root then return end
+    
     local bb = Instance.new("BillboardGui")
     bb.Adornee = root
-    bb.Size = UDim2.new(0, 140, 0, 42)
-    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+    bb.Size = UDim2.new(0, 200, 0, 50)
+    bb.StudsOffset = Vector3.new(0, 4, 0)
     bb.AlwaysOnTop = true
     bb.MaxDistance = 1000
     bb.Parent = model
     hpBarAlvo = bb
-    local bg = Instance.new("Frame")
-    bg.Name = "BarBg"
-    bg.Size = UDim2.new(1, 0, 0, 14)
-    bg.Position = UDim2.new(0, 0, 0, 20)
-    bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    bg.BorderSizePixel = 0
-    bg.Parent = bb
-    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 7)
-    local fill = Instance.new("Frame")
-    fill.Name = "Fill"
-    fill.Size = UDim2.new(1, 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    fill.BorderSizePixel = 0
-    fill.Parent = bg
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 7)
+    
+    -- 🔥 Nome do monstro
     local lbl = Instance.new("TextLabel")
     lbl.Name = "Lbl"
-    lbl.Size = UDim2.new(1, 0, 0, 18)
+    lbl.Size = UDim2.new(1, 0, 0, 16)
+    lbl.Position = UDim2.new(0, 0, 0, 0)
     lbl.BackgroundTransparency = 1
     lbl.Text = model.Name
     lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -796,13 +786,49 @@ local function criarHPBar(model)
     lbl.Font = Enum.Font.GothamBold
     lbl.TextSize = 13
     lbl.Parent = bb
+    
+    -- 🔥 Barra de fundo
+    local bg = Instance.new("Frame")
+    bg.Name = "BarBg"
+    bg.Size = UDim2.new(1, 0, 0, 14)
+    bg.Position = UDim2.new(0, 0, 0, 18)
+    bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    bg.BorderSizePixel = 0
+    bg.Parent = bb
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 7)
+    
+    -- 🔥 Preenchimento
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    fill.BorderSizePixel = 0
+    fill.Parent = bg
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 7)
+    
+    -- 🔥 Número de HP (NOVO)
+    local hpLbl = Instance.new("TextLabel")
+    hpLbl.Name = "HpLbl"
+    hpLbl.Size = UDim2.new(1, 0, 0, 16)
+    hpLbl.Position = UDim2.new(0, 0, 0, 34)
+    hpLbl.BackgroundTransparency = 1
+    hpLbl.Text = "?"
+    hpLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hpLbl.TextStrokeTransparency = 0
+    hpLbl.Font = Enum.Font.GothamBold
+    hpLbl.TextSize = 12
+    hpLbl.Parent = bb
 end
 
+-- ══════════════════════════════════════════════════
+-- 🔥 ATUALIZAR HP BAR (COM NÚMERO)
+-- ══════════════════════════════════════════════════
 local function atualizarHPBar()
     if not hpBarAlvo or not hpBarAlvo.Parent or not target or not target.Parent then return end
     local hp, maxHp = getHealth(target)
     if not hp then return end
     local pct = math.clamp(hp / math.max(maxHp or 100, 1), 0, 1)
+    
     local bg = hpBarAlvo:FindFirstChild("BarBg")
     if bg then
         local fill = bg:FindFirstChild("Fill")
@@ -812,6 +838,16 @@ local function atualizarHPBar()
             elseif pct > 0.3 then fill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
             else fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50) end
         end
+    end
+    
+    -- 🔥 Atualiza o número
+    local hpLbl = hpBarAlvo:FindFirstChild("HpLbl")
+    if hpLbl then
+        hpLbl.Text = string.format("%d/%d", math.floor(hp), math.floor(maxHp or 100))
+        -- Muda cor do número conforme HP
+        if pct > 0.6 then hpLbl.TextColor3 = Color3.fromRGB(0, 255, 120)
+        elseif pct > 0.3 then hpLbl.TextColor3 = Color3.fromRGB(255, 220, 0)
+        else hpLbl.TextColor3 = Color3.fromRGB(255, 80, 80) end
     end
 end
 
@@ -1045,13 +1081,12 @@ local function toggleESP()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOCK TARGET (com re-escaneamento)
+-- 🔥 LOCK TARGET
 -- ══════════════════════════════════════════════════
 function lockTarget(novoAlvo)
     DEVE_RESETAR_ATE = 0
     matarMovers()
     
-    -- 🔥 Re-escaneia e pega o alvo mais próximo da câmera AGORA
     local alvoAtualizado = acharAlvo() or novoAlvo
     target = alvoAtualizado
     novoAlvo = alvoAtualizado
@@ -1078,6 +1113,9 @@ function lockTarget(novoAlvo)
     atualizarStatus()
 end
 
+-- ══════════════════════════════════════════════════
+-- 🔥 UNLOCK TARGET (RESET COMPLETO)
+-- ══════════════════════════════════════════════════
 function unlockTarget()
     locked = false
     target = nil
@@ -1087,19 +1125,52 @@ function unlockTarget()
     lockBtn.BackgroundColor3 = CORES.botao
     infoBox.Visible = false
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
+    
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
-    resetarCamera()
+    
+    -- RESET 1
     pcall(function()
-        if cameraTypeAntigo and cameraTypeAntigo ~= Enum.CameraType.Scriptable then
-            if Workspace.CurrentCamera then Workspace.CurrentCamera.CameraType = cameraTypeAntigo end
+        local cam = Workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then 
+                cam.CameraSubject = hum 
+            end
         end
-        if cameraModeAntigo then player.CameraMode = cameraModeAntigo end
+        player.CameraMode = Enum.CameraMode.Classic
     end)
+    
+    -- RESET 2
     pcall(function()
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.AutoRotate = true end
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.AutoRotate = true
+            hum.PlatformStand = false
+            hum.CameraOffset = Vector3.new(0, 0, 0)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
     end)
+    
+    -- RESET 3
+    task.wait(0.05)
+    
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam and cam.CameraType ~= Enum.CameraType.Custom then
+            cam.CameraType = Enum.CameraType.Custom
+        end
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.AutoRotate = true
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+    
     atualizarStatus()
 end
 
@@ -1242,7 +1313,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v24!")
-print("🎯 Alvo atualiza ao ATIVAR o lock")
-print("🎯 Alvo também atualiza a cada 0.5s (alvo mais próximo)")
+print("✅ AIMLOCK DO EZEK v25 DEFINITIVO!")
+print("🔄 Reset completo ao deslockar")
+print("❤️ HP do alvo aparece em cima do monstro")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
