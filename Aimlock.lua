@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v20 - RESPEITA SHIFT LOCK DO SLAYERS 2
+-- AIMLOCK DO EZEK v22 - ALVO ATUALIZA A CADA 0.5s
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,7 +8,6 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local DISTANCIA_CAMERA = 12
-local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- ============ DESATIVA AIMASSIST E COMBAT DO PS ============
 task.spawn(function()
@@ -49,11 +48,10 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
--- 🔥 Controle do shift lock do jogo
-local jogoNoControle = false
-
--- 🔥 DEBUG ANGULO
-local debugAngulo = true
+-- 🔥 Auto-unlock
+local sobrecargaContador = 0
+local moversContagem = 0
+local anguloTravadoContador = 0
 
 -- 🔥 Expõe pra debug externo
 _G.EZEK_LOCKED = false
@@ -115,10 +113,7 @@ end
 task.spawn(function() 
     while task.wait(0.1) do 
         pcall(function()
-            -- 🔥 Só roda com lock ativo
-            if locked then
-                matarMovers()
-            end
+            if locked then matarMovers() end
         end)
     end 
 end)
@@ -129,7 +124,6 @@ end)
 task.spawn(function()
     while task.wait(0.1) do
         pcall(function()
-            -- 🔥 Só roda com lock ativo
             if not locked then return end
             
             local char = player.Character
@@ -164,9 +158,7 @@ task.spawn(function()
                             local parte1 = obj.Part1 and obj.Part1.Name or ""
                             
                             if not partesCorpo[parte0] and not partesCorpo[parte1] then
-                                pcall(function()
-                                    obj:Destroy()
-                                end)
+                                pcall(function() obj:Destroy() end)
                             end
                         end
                     end
@@ -177,41 +169,93 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 RESPECT SHIFT LOCK DO SLAYERS 2
+-- 🔥 AUTO-UNLOCK SE SOBRECARREGAR
 -- ══════════════════════════════════════════════════
 task.spawn(function()
-    while task.wait(0.05) do
-        pcall(function()
-            local cam = Workspace.CurrentCamera
-            if not cam then return end
-            
-            local jogoForcando = (locked and cam.CameraType ~= Enum.CameraType.Scriptable)
-            
-            if jogoForcando and not jogoNoControle then
-                jogoNoControle = true
-                if locked then
-                    pcall(function()
-                        locked = false
-                        target = nil
-                        RunService:UnbindFromRenderStep("EZEK_Cam")
-                        RunService:UnbindFromRenderStep("EZEK_Body")
-                        resetarCamera()
-                        lockBtn.Text = "🔓 LOCK: OFF (jogo assumiu)"
-                        lockBtn.BackgroundColor3 = CORES.botao
-                        infoBox.Visible = false
-                    end)
-                    print("🎮 Shift lock do jogo assumiu")
+    while task.wait(0.1) do
+        if locked then
+            local char = player.Character
+            if char then
+                moversContagem = 0
+                for _, obj in ipairs(char:GetDescendants()) do
+                    if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") 
+                       or obj:IsA("Weld") or obj:IsA("WeldConstraint")
+                       or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") then
+                        moversContagem += 1
+                    end
                 end
-            elseif not jogoForcando and jogoNoControle then
-                jogoNoControle = false
-                print("✅ Jogo soltou — aimlock pode voltar")
+                
+                if moversContagem > 8 then
+                    sobrecargaContador += 1
+                    if sobrecargaContador > 5 then
+                        pcall(function() unlockTarget() end)
+                        print("⚠️ Sobrecarga! Lock solto (" .. moversContagem .. " movers)")
+                        sobrecargaContador = 0
+                    end
+                else
+                    sobrecargaContador = 0
+                end
             end
-        end)
+        end
     end
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 FORÇA MOVEDIRECTION (SÓ QUANDO PARADO E LOCKADO)
+-- 🔥 AUTO-UNLOCK SE ÂNGULO TRAVAR
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(0.2) do
+        if locked then
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local cam = Workspace.CurrentCamera
+            
+            if hum and root and cam then
+                local bF = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+                local cF = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+                
+                if bF.Magnitude > 0.01 and cF.Magnitude > 0.01 then
+                    local ang = math.deg(math.acos(math.clamp(bF.Unit:Dot(cF.Unit), -1, 1)))
+                    
+                    if ang > 60 then
+                        anguloTravadoContador += 1
+                        if anguloTravadoContador > 7 then
+                            pcall(function() unlockTarget() end)
+                            print("⚠️ Ângulo travado (" .. math.floor(ang) .. "°)! Lock solto")
+                            anguloTravadoContador = 0
+                        end
+                    else
+                        anguloTravadoContador = 0
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 ATUALIZA ALVO A CADA 0.5s (NOVO)
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(0.5) do
+        if locked then
+            pcall(function()
+                local novoAlvo = acharAlvo()
+                if novoAlvo and novoAlvo ~= target and novoAlvo.Parent then
+                    target = novoAlvo
+                    _G.EZEK_TARGET = novoAlvo
+                    if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
+                    criarHPBar(novoAlvo)
+                    print("🎯 Alvo atualizado: " .. novoAlvo.Name)
+                end
+            end)
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 FORÇA MOVEDIRECTION (SÓ QUANDO PARADO)
 -- ══════════════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     local char = player.Character
@@ -235,7 +279,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 AUTO-OFF DO LOCK NA MORTE
+-- 🔥 AUTO-OFF NA MORTE
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.1) do
@@ -243,16 +287,12 @@ task.spawn(function()
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         
         if hum and hum.Health <= 0 and locked then
-            pcall(function()
-                unlockTarget()
-            end)
+            pcall(function() unlockTarget() end)
             print("💀 Morreu! Lock desligado")
         end
         
         if locked and (not target or not target.Parent) then
-            pcall(function()
-                unlockTarget()
-            end)
+            pcall(function() unlockTarget() end)
             print("🎯 Target sumiu! Lock desligado")
         end
     end
@@ -353,7 +393,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v20"
+title.Text = "🎯 EZEK v22"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -429,7 +469,7 @@ local espBtn = criarBotao("👁️ ESP: OFF", 120)
 
 -- 🔥 DEBUG ANGULO FRAME
 local debugFrame = Instance.new("Frame")
-debugFrame.Size = UDim2.new(1, 0, 0, 90)
+debugFrame.Size = UDim2.new(1, 0, 0, 105)
 debugFrame.Position = UDim2.new(0, 0, 0, 170)
 debugFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 debugFrame.BackgroundTransparency = 0.3
@@ -456,7 +496,7 @@ debugLabel.Parent = debugFrame
 -- FILTROS
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
-filtroFrame.Position = UDim2.new(0, 0, 0, 270)
+filtroFrame.Position = UDim2.new(0, 0, 0, 285)
 filtroFrame.BackgroundColor3 = CORES.topo
 filtroFrame.BorderSizePixel = 0
 filtroFrame.Parent = content
@@ -518,7 +558,7 @@ criarCheck("👹 Monstros", "monstros", 86)
 -- SLIDERS
 local slidersFrame = Instance.new("Frame")
 slidersFrame.Size = UDim2.new(1, 0, 0, 130)
-slidersFrame.Position = UDim2.new(0, 0, 0, 390)
+slidersFrame.Position = UDim2.new(0, 0, 0, 405)
 slidersFrame.BackgroundColor3 = CORES.topo
 slidersFrame.BorderSizePixel = 0
 slidersFrame.Parent = content
@@ -626,7 +666,7 @@ criarSlider("↕️ Altura", 0.7, 1.6, escalaH, 74, function(v) escalaH = v; apl
 
 local infoBox = Instance.new("Frame")
 infoBox.Size = UDim2.new(1, 0, 0, 60)
-infoBox.Position = UDim2.new(0, 0, 0, 530)
+infoBox.Position = UDim2.new(0, 0, 0, 545)
 infoBox.BackgroundColor3 = CORES.topo
 infoBox.BorderSizePixel = 0
 infoBox.Visible = false
@@ -928,8 +968,8 @@ task.spawn(function()
                 
                 local lockIcon = locked and "🔒" or "🔓"
                 debugLabel.Text = string.format(
-                    "📐 DEBUG %s\nBody: X=%.2f Z=%.2f\nCam:  X=%.2f Z=%.2f\nAngulo: %.0f° %s",
-                    lockIcon, bLook.X, bLook.Z, cLook.X, cLook.Z, ang, status
+                    "📐 DEBUG %s\nBody: X=%.2f Z=%.2f\nCam:  X=%.2f Z=%.2f\nAngulo: %.0f° %s\nMovers: %d",
+                    lockIcon, bLook.X, bLook.Z, cLook.X, cLook.Z, ang, status, moversContagem
                 )
                 debugLabel.TextColor3 = ang < 15 and Color3.fromRGB(0, 255, 120) or (ang < 45 and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 60, 60))
             end
@@ -1239,7 +1279,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v20!")
-print("🎮 Respeita shift lock do Slayers 2")
-print("🛡️ Welds e Movers só são mexidos com lock ativo")
+print("✅ AIMLOCK DO EZEK v22!")
+print("🎯 Alvo atualiza a cada 0.5s")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
