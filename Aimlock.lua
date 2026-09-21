@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.4 - DASH ATUALIZA SEMPRE
+-- AIMLOCK DO EZEK v18.5 - AUTO-OFF NA MORTE + STUN CURTO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -44,7 +44,7 @@ local filtros = { players = true, dummies = true, monstros = true }
 local ultimoHitTime = 0
 local vidaAnterior = 100
 local HIT_JANELA = 0.6
-local STUN_DURACAO = 1.5
+local STUN_DURACAO = 0.4  -- 🔥 Reduzido de 1.5 pra 0.4
 local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
@@ -112,7 +112,7 @@ end
 task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 FORÇA ATUALIZAÇÃO CONSTANTE DA DIREÇÃO (NOVO)
+-- 🔥 FORÇA ATUALIZAÇÃO CONSTANTE DA DIREÇÃO
 -- ══════════════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     local char = player.Character
@@ -129,6 +129,32 @@ RunService.RenderStepped:Connect(function()
             pcall(function()
                 hum.MoveDirection = flat + Vector3.new(0.001, 0, 0.001)
             end)
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 AUTO-OFF DO LOCK NA MORTE (NOVO)
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(0.1) do
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        
+        -- Se morreu e lock tá ativo → desliga
+        if hum and hum.Health <= 0 and locked then
+            pcall(function()
+                unlockTarget()
+            end)
+            print("💀 Morreu! Lock desligado automaticamente")
+        end
+        
+        -- Se o alvo sumiu → desliga
+        if locked and (not target or not target.Parent) then
+            pcall(function()
+                unlockTarget()
+            end)
+            print("🎯 Target sumiu! Lock desligado")
         end
     end
 end)
@@ -228,7 +254,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.4"
+title.Text = "🎯 EZEK v18.5"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1114,6 +1140,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.4!")
-print("🔥 Dash força direção TODO frame")
+print("✅ AIMLOCK DO EZEK v18.5!")
+print("💀 Lock auto-off na morte")
+print("🎯 Stun reduzido (0.4s)")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
