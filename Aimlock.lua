@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v19 - MOVEDIRECTION INTELIGENTE
+-- AIMLOCK DO EZEK v20 - RESPEITA SHIFT LOCK DO SLAYERS 2
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -49,6 +49,9 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
+-- 🔥 Controle do shift lock do jogo
+local jogoNoControle = false
+
 -- 🔥 DEBUG ANGULO
 local debugAngulo = true
 
@@ -64,7 +67,7 @@ local function estaStunado()
     return dif >= 0 and dif < STUN_DURACAO
 end
 
--- ============ MATA MOVERS ============
+-- ============ MATA MOVERS (SÓ COM LOCK) ============
 local moverAges = {}
 
 local function matarMovers()
@@ -109,29 +112,26 @@ local function matarMovers()
     end
 end
 
-task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
-
--- ══════════════════════════════════════════════════
--- 🔥 LIMPA moverAges (contra acúmulo com vários monstros)
--- ══════════════════════════════════════════════════
-task.spawn(function()
-    while task.wait(2) do
+task.spawn(function() 
+    while task.wait(0.1) do 
         pcall(function()
-            for obj, _ in pairs(moverAges) do
-                if not obj or not obj.Parent then
-                    moverAges[obj] = nil
-                end
+            -- 🔥 Só roda com lock ativo
+            if locked then
+                matarMovers()
             end
         end)
-    end
+    end 
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 MATA WELDS (filtro por partes conectadas)
+-- 🔥 MATA WELDS (SÓ COM LOCK)
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.1) do
         pcall(function()
+            -- 🔥 Só roda com lock ativo
+            if not locked then return end
+            
             local char = player.Character
             if not char then return end
             
@@ -177,7 +177,41 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 FORÇA MOVEDIRECTION (SÓ QUANDO PARADO)
+-- 🔥 RESPECT SHIFT LOCK DO SLAYERS 2
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(0.05) do
+        pcall(function()
+            local cam = Workspace.CurrentCamera
+            if not cam then return end
+            
+            local jogoForcando = (locked and cam.CameraType ~= Enum.CameraType.Scriptable)
+            
+            if jogoForcando and not jogoNoControle then
+                jogoNoControle = true
+                if locked then
+                    pcall(function()
+                        locked = false
+                        target = nil
+                        RunService:UnbindFromRenderStep("EZEK_Cam")
+                        RunService:UnbindFromRenderStep("EZEK_Body")
+                        resetarCamera()
+                        lockBtn.Text = "🔓 LOCK: OFF (jogo assumiu)"
+                        lockBtn.BackgroundColor3 = CORES.botao
+                        infoBox.Visible = false
+                    end)
+                    print("🎮 Shift lock do jogo assumiu")
+                end
+            elseif not jogoForcando and jogoNoControle then
+                jogoNoControle = false
+                print("✅ Jogo soltou — aimlock pode voltar")
+            end
+        end)
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 FORÇA MOVEDIRECTION (SÓ QUANDO PARADO E LOCKADO)
 -- ══════════════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     local char = player.Character
@@ -187,7 +221,6 @@ RunService.RenderStepped:Connect(function()
     if not hum or not cam then return end
     
     if locked then
-        -- 🔥 Só força se o JOGADOR não tá empurrando o analógico
         if hum.MoveDirection.Magnitude < 0.1 then
             local camLook = cam.CFrame.LookVector
             local flat = Vector3.new(camLook.X, 0, camLook.Z)
@@ -213,7 +246,7 @@ task.spawn(function()
             pcall(function()
                 unlockTarget()
             end)
-            print("💀 Morreu! Lock desligado automaticamente")
+            print("💀 Morreu! Lock desligado")
         end
         
         if locked and (not target or not target.Parent) then
@@ -320,7 +353,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v19"
+title.Text = "🎯 EZEK v20"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1206,6 +1239,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v19!")
-print("🎯 MoveDirection forçado SÓ quando parado")
+print("✅ AIMLOCK DO EZEK v20!")
+print("🎮 Respeita shift lock do Slayers 2")
+print("🛡️ Welds e Movers só são mexidos com lock ativo")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
