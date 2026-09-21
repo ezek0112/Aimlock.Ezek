@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v23 - SEM AUTO-UNLOCK
+-- AIMLOCK DO EZEK v24 - ATUALIZA ALVO AO ATIVAR LOCK
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -48,7 +48,7 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
--- 🔥 Só contagem (sem auto-unlock)
+-- 🔥 Só contagem
 local moversContagem = 0
 
 -- 🔥 Expõe pra debug externo
@@ -187,7 +187,7 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 CONTA MOVERS (só pra debug, não solta lock)
+-- 🔥 CONTA MOVERS (só pra debug)
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.2) do
@@ -348,7 +348,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v23"
+title.Text = "🎯 EZEK v24"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1044,10 +1044,18 @@ local function toggleESP()
     atualizarStatus()
 end
 
+-- ══════════════════════════════════════════════════
+-- 🔥 LOCK TARGET (com re-escaneamento)
+-- ══════════════════════════════════════════════════
 function lockTarget(novoAlvo)
     DEVE_RESETAR_ATE = 0
     matarMovers()
-    target = novoAlvo
+    
+    -- 🔥 Re-escaneia e pega o alvo mais próximo da câmera AGORA
+    local alvoAtualizado = acharAlvo() or novoAlvo
+    target = alvoAtualizado
+    novoAlvo = alvoAtualizado
+    
     locked = true
     _G.EZEK_LOCKED = true
     _G.EZEK_TARGET = novoAlvo
@@ -1234,7 +1242,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v23!")
-print("🎯 Alvo atualiza a cada 0.5s")
-print("🚫 Sem auto-unlock (você controla)")
+print("✅ AIMLOCK DO EZEK v24!")
+print("🎯 Alvo atualiza ao ATIVAR o lock")
+print("🎯 Alvo também atualiza a cada 0.5s (alvo mais próximo)")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
