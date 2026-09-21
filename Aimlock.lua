@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.8 - WELDS FILTRO CIRÚRGICO
+-- AIMLOCK DO EZEK v18.9 - SEM FORÇAR MOVEDIRECTION
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -112,7 +112,7 @@ end
 task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 MATA WELDS (v18.8 - verifica PARTES conectadas)
+-- 🔥 MATA WELDS (v18.9 - filtro por partes conectadas)
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.1) do
@@ -120,7 +120,6 @@ task.spawn(function()
             local char = player.Character
             if not char then return end
             
-            -- Partes do corpo (R6 e R15)
             local partesCorpo = {
                 ["HumanoidRootPart"] = true,
                 ["Torso"] = true, ["UpperTorso"] = true, ["LowerTorso"] = true,
@@ -138,7 +137,6 @@ task.spawn(function()
                     local parent = obj.Parent
                     local parentNome = parent.Name
                     
-                    -- Só age se NÃO é parte do corpo e NÃO é filho direto do char
                     if not partesCorpo[parentNome] and parent ~= char then
                         local nome = string.lower(obj.Name)
                         local suspeito = nome == "weld"
@@ -147,11 +145,9 @@ task.spawn(function()
                             or nome:find("pull") or nome:find("grab") or nome:find("trap")
                         
                         if suspeito then
-                            -- 🔥 Verifica as partes conectadas
                             local parte0 = obj.Part0 and obj.Part0.Name or ""
                             local parte1 = obj.Part1 and obj.Part1.Name or ""
                             
-                            -- Só mata se NENHUMA das partes conectadas for do corpo
                             if not partesCorpo[parte0] and not partesCorpo[parte1] then
                                 pcall(function()
                                     obj:Destroy()
@@ -162,28 +158,6 @@ task.spawn(function()
                 end
             end
         end)
-    end
-end)
-
--- ══════════════════════════════════════════════════
--- 🔥 FORÇA ATUALIZAÇÃO CONSTANTE DA DIREÇÃO
--- ══════════════════════════════════════════════════
-RunService.RenderStepped:Connect(function()
-    local char = player.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local cam = Workspace.CurrentCamera
-    if not hum or not cam then return end
-    
-    if locked then
-        local camLook = cam.CFrame.LookVector
-        local flat = Vector3.new(camLook.X, 0, camLook.Z)
-        if flat.Magnitude > 0.01 then
-            flat = flat.Unit
-            pcall(function()
-                hum.MoveDirection = flat + Vector3.new(0.001, 0, 0.001)
-            end)
-        end
     end
 end)
 
@@ -306,7 +280,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.8"
+title.Text = "🎯 EZEK v18.9"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -827,7 +801,7 @@ local function updateCamera()
     atualizarHPBar()
 end
 
--- ============ UPDATE CORPO ============
+-- ============ UPDATE CORPO (SEM FORÇAR MOVEDIRECTION) ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -1192,6 +1166,5 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.8!")
-print("🔗 Welds filtrados por partes conectadas (mais seguro)")
+print("✅ AIMLOCK DO EZEK v18.9!")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
