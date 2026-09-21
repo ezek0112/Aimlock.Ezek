@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v22 - ALVO ATUALIZA A CADA 0.5s
+-- AIMLOCK DO EZEK v23 - SEM AUTO-UNLOCK
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -48,10 +48,8 @@ local espUltimoScan = 0
 local espUltimaLabel = 0
 local DEVE_RESETAR_ATE = 0
 
--- 🔥 Auto-unlock
-local sobrecargaContador = 0
+-- 🔥 Só contagem (sem auto-unlock)
 local moversContagem = 0
-local anguloTravadoContador = 0
 
 -- 🔥 Expõe pra debug externo
 _G.EZEK_LOCKED = false
@@ -169,73 +167,7 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 AUTO-UNLOCK SE SOBRECARREGAR
--- ══════════════════════════════════════════════════
-task.spawn(function()
-    while task.wait(0.1) do
-        if locked then
-            local char = player.Character
-            if char then
-                moversContagem = 0
-                for _, obj in ipairs(char:GetDescendants()) do
-                    if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") 
-                       or obj:IsA("Weld") or obj:IsA("WeldConstraint")
-                       or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") then
-                        moversContagem += 1
-                    end
-                end
-                
-                if moversContagem > 8 then
-                    sobrecargaContador += 1
-                    if sobrecargaContador > 5 then
-                        pcall(function() unlockTarget() end)
-                        print("⚠️ Sobrecarga! Lock solto (" .. moversContagem .. " movers)")
-                        sobrecargaContador = 0
-                    end
-                else
-                    sobrecargaContador = 0
-                end
-            end
-        end
-    end
-end)
-
--- ══════════════════════════════════════════════════
--- 🔥 AUTO-UNLOCK SE ÂNGULO TRAVAR
--- ══════════════════════════════════════════════════
-task.spawn(function()
-    while task.wait(0.2) do
-        if locked then
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            local cam = Workspace.CurrentCamera
-            
-            if hum and root and cam then
-                local bF = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
-                local cF = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
-                
-                if bF.Magnitude > 0.01 and cF.Magnitude > 0.01 then
-                    local ang = math.deg(math.acos(math.clamp(bF.Unit:Dot(cF.Unit), -1, 1)))
-                    
-                    if ang > 60 then
-                        anguloTravadoContador += 1
-                        if anguloTravadoContador > 7 then
-                            pcall(function() unlockTarget() end)
-                            print("⚠️ Ângulo travado (" .. math.floor(ang) .. "°)! Lock solto")
-                            anguloTravadoContador = 0
-                        end
-                    else
-                        anguloTravadoContador = 0
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- ══════════════════════════════════════════════════
--- 🔥 ATUALIZA ALVO A CADA 0.5s (NOVO)
+-- 🔥 ATUALIZA ALVO A CADA 0.5s
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.5) do
@@ -251,6 +183,29 @@ task.spawn(function()
                 end
             end)
         end
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 CONTA MOVERS (só pra debug, não solta lock)
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(0.2) do
+        pcall(function()
+            if locked then
+                local char = player.Character
+                if char then
+                    moversContagem = 0
+                    for _, obj in ipairs(char:GetDescendants()) do
+                        if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") 
+                           or obj:IsA("Weld") or obj:IsA("WeldConstraint")
+                           or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") then
+                            moversContagem += 1
+                        end
+                    end
+                end
+            end
+        end)
     end
 end)
 
@@ -393,7 +348,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v22"
+title.Text = "🎯 EZEK v23"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1279,6 +1234,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v22!")
+print("✅ AIMLOCK DO EZEK v23!")
 print("🎯 Alvo atualiza a cada 0.5s")
+print("🚫 Sem auto-unlock (você controla)")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
