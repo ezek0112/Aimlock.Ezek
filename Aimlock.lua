@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.9 - SEM FORÇAR MOVEDIRECTION
+-- AIMLOCK DO EZEK v19 - MOVEDIRECTION INTELIGENTE
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -112,7 +112,22 @@ end
 task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 MATA WELDS (v18.9 - filtro por partes conectadas)
+-- 🔥 LIMPA moverAges (contra acúmulo com vários monstros)
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            for obj, _ in pairs(moverAges) do
+                if not obj or not obj.Parent then
+                    moverAges[obj] = nil
+                end
+            end
+        end)
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 MATA WELDS (filtro por partes conectadas)
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.1) do
@@ -158,6 +173,31 @@ task.spawn(function()
                 end
             end
         end)
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔥 FORÇA MOVEDIRECTION (SÓ QUANDO PARADO)
+-- ══════════════════════════════════════════════════
+RunService.RenderStepped:Connect(function()
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local cam = Workspace.CurrentCamera
+    if not hum or not cam then return end
+    
+    if locked then
+        -- 🔥 Só força se o JOGADOR não tá empurrando o analógico
+        if hum.MoveDirection.Magnitude < 0.1 then
+            local camLook = cam.CFrame.LookVector
+            local flat = Vector3.new(camLook.X, 0, camLook.Z)
+            if flat.Magnitude > 0.01 then
+                flat = flat.Unit
+                pcall(function()
+                    hum.MoveDirection = flat + Vector3.new(0.001, 0, 0.001)
+                end)
+            end
+        end
     end
 end)
 
@@ -280,7 +320,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.9"
+title.Text = "🎯 EZEK v19"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -801,7 +841,7 @@ local function updateCamera()
     atualizarHPBar()
 end
 
--- ============ UPDATE CORPO (SEM FORÇAR MOVEDIRECTION) ============
+-- ============ UPDATE CORPO ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -1166,5 +1206,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.9!")
+print("✅ AIMLOCK DO EZEK v19!")
+print("🎯 MoveDirection forçado SÓ quando parado")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
