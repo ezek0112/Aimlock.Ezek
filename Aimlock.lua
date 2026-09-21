@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v18.6 - MATA WELDS DE BOSS
+-- AIMLOCK DO EZEK v18.7 - WELDS DE BOSS SEM MATAR ACESSÓRIOS
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -112,7 +112,7 @@ end
 task.spawn(function() while task.wait(0.1) do pcall(matarMovers) end end)
 
 -- ══════════════════════════════════════════════════
--- 🔥 MATA WELDS DE BOSS (NOVO)
+-- 🔥 MATA WELDS DE BOSS (v18.7 - filtro por nome, preserva acessórios)
 -- ══════════════════════════════════════════════════
 task.spawn(function()
     while task.wait(0.1) do
@@ -120,7 +120,7 @@ task.spawn(function()
             local char = player.Character
             if not char then return end
             
-            -- Nomes das partes do corpo (R6 e R15)
+            -- Partes do corpo (R6 e R15)
             local partesCorpo = {
                 ["HumanoidRootPart"] = true,
                 ["Torso"] = true, ["UpperTorso"] = true, ["LowerTorso"] = true,
@@ -135,10 +135,16 @@ task.spawn(function()
             
             for _, obj in ipairs(char:GetDescendants()) do
                 if obj:IsA("Weld") or obj:IsA("WeldConstraint") then
-                    -- Se o Parent NÃO é parte do corpo → é weld de boss
-                    if not partesCorpo[obj.Parent.Name] then
-                        -- Mas se for filho direto do char, deixa (proteção)
-                        if obj.Parent ~= char then
+                    local parent = obj.Parent
+                    local parentNome = parent.Name
+                    
+                    -- Só age se NÃO é parte do corpo e NÃO é filho direto do char
+                    if not partesCorpo[parentNome] and parent ~= char then
+                        -- 🔥 Filtra por NOME suspeito (Welds de boss)
+                        local nome = string.lower(obj.Name)
+                        if nome:find("tang") or nome:find("boss") or nome:find("hit")
+                           or nome:find("stun") or nome:find("root") or nome:find("knock")
+                           or nome:find("pull") or nome:find("grab") or nome:find("trap") then
                             pcall(function()
                                 obj:Destroy()
                             end)
@@ -291,7 +297,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v18.6"
+title.Text = "🎯 EZEK v18.7"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
@@ -1177,6 +1183,6 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v18.6!")
-print("🔗 Welds de boss são removidos automaticamente")
+print("✅ AIMLOCK DO EZEK v18.7!")
+print("🔗 Welds de boss filtrados por nome (preserva acessórios)")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
