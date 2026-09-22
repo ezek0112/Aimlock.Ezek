@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v25 DEFINITIVO - RESET COMPLETO + HP NA BARRA
+-- AIMLOCK DO EZEK v25 APRIMORADA - UNIVERSAL + R1+R2 FUNCIONANDO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +9,7 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local DISTANCIA_CAMERA = 12
 
--- ============ DESATIVA AIMASSIST E COMBAT DO PS ============
+-- ============ DESATIVA AIMASSIST E COMBAT DO PS (SLayers 2) ============
 task.spawn(function()
     while task.wait(0.2) do
         pcall(function()
@@ -346,10 +346,10 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v25 DEFINITIVO"
+title.Text = "🎯 EZEK v25 APRIMORADA"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
-title.TextSize = 13
+title.TextSize = 12
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
@@ -774,7 +774,6 @@ local function criarHPBar(model)
     bb.Parent = model
     hpBarAlvo = bb
     
-    -- 🔥 Nome do monstro
     local lbl = Instance.new("TextLabel")
     lbl.Name = "Lbl"
     lbl.Size = UDim2.new(1, 0, 0, 16)
@@ -787,7 +786,6 @@ local function criarHPBar(model)
     lbl.TextSize = 13
     lbl.Parent = bb
     
-    -- 🔥 Barra de fundo
     local bg = Instance.new("Frame")
     bg.Name = "BarBg"
     bg.Size = UDim2.new(1, 0, 0, 14)
@@ -797,7 +795,6 @@ local function criarHPBar(model)
     bg.Parent = bb
     Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 7)
     
-    -- 🔥 Preenchimento
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
     fill.Size = UDim2.new(1, 0, 1, 0)
@@ -806,7 +803,6 @@ local function criarHPBar(model)
     fill.Parent = bg
     Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 7)
     
-    -- 🔥 Número de HP (NOVO)
     local hpLbl = Instance.new("TextLabel")
     hpLbl.Name = "HpLbl"
     hpLbl.Size = UDim2.new(1, 0, 0, 16)
@@ -820,9 +816,6 @@ local function criarHPBar(model)
     hpLbl.Parent = bb
 end
 
--- ══════════════════════════════════════════════════
--- 🔥 ATUALIZAR HP BAR (COM NÚMERO)
--- ══════════════════════════════════════════════════
 local function atualizarHPBar()
     if not hpBarAlvo or not hpBarAlvo.Parent or not target or not target.Parent then return end
     local hp, maxHp = getHealth(target)
@@ -840,11 +833,9 @@ local function atualizarHPBar()
         end
     end
     
-    -- 🔥 Atualiza o número
     local hpLbl = hpBarAlvo:FindFirstChild("HpLbl")
     if hpLbl then
         hpLbl.Text = string.format("%d/%d", math.floor(hp), math.floor(maxHp or 100))
-        -- Muda cor do número conforme HP
         if pct > 0.6 then hpLbl.TextColor3 = Color3.fromRGB(0, 255, 120)
         elseif pct > 0.3 then hpLbl.TextColor3 = Color3.fromRGB(255, 220, 0)
         else hpLbl.TextColor3 = Color3.fromRGB(255, 80, 80) end
@@ -1129,7 +1120,6 @@ function unlockTarget()
     RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
     
-    -- RESET 1
     pcall(function()
         local cam = Workspace.CurrentCamera
         if cam then
@@ -1143,7 +1133,6 @@ function unlockTarget()
         player.CameraMode = Enum.CameraMode.Classic
     end)
     
-    -- RESET 2
     pcall(function()
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1155,7 +1144,6 @@ function unlockTarget()
         end
     end)
     
-    -- RESET 3
     task.wait(0.05)
     
     pcall(function()
@@ -1186,18 +1174,29 @@ end
 lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
--- ============ TECLAS ============
+-- ══════════════════════════════════════════════════
+-- 🔥 TECLAS (UNIVERSAL - FUNCIONA EM QUALQUER JOGO)
+-- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
 UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
+    -- 🔥 Não bloqueia botões do controle mesmo se o jogo consumir
+    local isControle = input.KeyCode == Enum.KeyCode.ButtonR1 
+        or input.KeyCode == Enum.KeyCode.ButtonR2
+        or input.KeyCode == Enum.KeyCode.ButtonL1 
+        or input.KeyCode == Enum.KeyCode.ButtonL2
+    
+    if gp and not isControle then return end
+    
     if input.KeyCode == Enum.KeyCode.Q then toggleLock()
     elseif input.KeyCode == Enum.KeyCode.E then toggleESP() end
+    
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
+    
     if r1 and r2 then
         local a = tick()
         if a - ultLock > 0.8 then toggleLock(); ultLock = a end
@@ -1313,7 +1312,8 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v25 DEFINITIVO!")
+print("✅ AIMLOCK DO EZEK v25 APRIMORADA!")
+print("🌐 Universal - R1+R2 funciona em qualquer jogo")
 print("🔄 Reset completo ao deslockar")
 print("❤️ HP do alvo aparece em cima do monstro")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
