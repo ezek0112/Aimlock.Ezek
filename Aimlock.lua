@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v25 APRIMORADA - UNIVERSAL + R1+R2 FUNCIONANDO
+-- AIMLOCK DO EZEK v25 ESPECIAL - UNIVERSAL + TOGGLE CORRIGIDO
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +9,7 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local DISTANCIA_CAMERA = 12
 
--- ============ DESATIVA AIMASSIST E COMBAT DO PS (SLayers 2) ============
+-- ============ DESATIVA AIMASSIST E COMBAT DO PS ============
 task.spawn(function()
     while task.wait(0.2) do
         pcall(function()
@@ -346,7 +346,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v25 APRIMORADA"
+title.Text = "🎯 EZEK v25 ESPECIAL"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 12
@@ -1175,13 +1175,12 @@ lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
 -- ══════════════════════════════════════════════════
--- 🔥 TECLAS (UNIVERSAL - FUNCIONA EM QUALQUER JOGO)
+-- 🔥 TECLAS (UNIVERSAL + RESET DE BOTÕES)
 -- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
 UserInputService.InputBegan:Connect(function(input, gp)
-    -- 🔥 Não bloqueia botões do controle mesmo se o jogo consumir
     local isControle = input.KeyCode == Enum.KeyCode.ButtonR1 
         or input.KeyCode == Enum.KeyCode.ButtonR2
         or input.KeyCode == Enum.KeyCode.ButtonL1 
@@ -1189,8 +1188,14 @@ UserInputService.InputBegan:Connect(function(input, gp)
     
     if gp and not isControle then return end
     
-    if input.KeyCode == Enum.KeyCode.Q then toggleLock()
-    elseif input.KeyCode == Enum.KeyCode.E then toggleESP() end
+    if input.KeyCode == Enum.KeyCode.Q then 
+        toggleLock()
+        return
+    end
+    if input.KeyCode == Enum.KeyCode.E then 
+        toggleESP() 
+        return
+    end
     
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
@@ -1199,11 +1204,22 @@ UserInputService.InputBegan:Connect(function(input, gp)
     
     if r1 and r2 then
         local a = tick()
-        if a - ultLock > 0.8 then toggleLock(); ultLock = a end
+        if a - ultLock > 0.8 then 
+            toggleLock()
+            ultLock = a
+            r1 = false
+            r2 = false
+        end
     end
+    
     if l1 and l2 then
         local a = tick()
-        if a - ultEsp > 0.8 then toggleESP(); ultEsp = a end
+        if a - ultEsp > 0.8 then 
+            toggleESP()
+            ultEsp = a
+            l1 = false
+            l2 = false
+        end
     end
 end)
 
@@ -1312,8 +1328,8 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v25 APRIMORADA!")
+print("✅ AIMLOCK DO EZEK v25 ESPECIAL!")
 print("🌐 Universal - R1+R2 funciona em qualquer jogo")
-print("🔄 Reset completo ao deslockar")
+print("🔄 Toggle liga E desliga sem travar")
 print("❤️ HP do alvo aparece em cima do monstro")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
