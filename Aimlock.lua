@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock | 👁️ ESP | 💥 Hitbox
+--   EZEK LOCK + ESP + HITBOX VISUAL - v2.1 ADVANCED
+--   🔒 Lock | 👁️ ESP | 💥 Hitbox | 📷 Câmera Spring
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -8,7 +8,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v2 REWORK"
+local VERSAO = "v2.1 ADVANCED"
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -23,6 +23,7 @@ local DISTANCIA_DA_CAMERA = 13.2
 local cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
 local cameraSalva = false
 local camConn = nil
+local camAtual = nil
 
 local ativo = false
 local alvo = nil
@@ -277,7 +278,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: CÂMERA + MIRA NO CENTRO DO ALVO
+-- 🔥 CÂMERA AVANÇADA (spring + damping adaptativo)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -296,7 +297,7 @@ local function atualizar()
         return
     end
 
-    -- SALVA CÂMERA
+    -- 🔥 SALVA ESTADO DA CÂMERA
     if not cameraSalva then
         pcall(function()
             cameraOriginal.CameraType = camera.CameraType
@@ -305,26 +306,46 @@ local function atualizar()
             cameraOriginal.CameraMode = player.CameraMode
         end)
         cameraSalva = true
+        camAtual = camera.CFrame
     end
 
-    -- 🔥 MIRA UM POUCO ABAIXO DO PEITO (alvo sobe na tela)
-    local aimPos = parteAlvo.Position + Vector3.new(0, -3, 0)
+    -- 🔥 MIRA NO PEITO DO ALVO
+    local aimPos = parteAlvo.Position
 
-    -- CÂMERA ATRÁS DE VOCÊ OLHANDO PRO ALVO
+    -- 🔥 DISTÂNCIA REAL
+    local distReal = (aimPos - root.Position).Magnitude
+    if distReal < 1 then distReal = 1 end
+
+    -- 🔥 POSIÇÃO DA CÂMERA ATRÁS DE VOCÊ
+    local dirParaAlvo = (aimPos - root.Position).Unit
+    local eyePos = root.Position + Vector3.new(0, CAM_HEIGHT, 0)
+    local camPos = eyePos - dirParaAlvo * DISTANCIA_DA_CAMERA
+
+    -- 🔥 CF DESTINO
+    local cfDestino = CFrame.lookAt(camPos, aimPos)
+
+    -- 🔥 SPRING/DAMPING (mais rápido quando longe, suave quando perto)
+    if not camAtual then camAtual = cfDestino end
+
+    local velocidade = math.clamp(1 - (distReal / 200), 0.08, 0.35)
+
+    -- Suavização exponencial framerate-independent
+    local dt = 1/60
+    local fator = 1 - math.exp(-velocidade * 60 * dt)
+
+    camAtual = camAtual:Lerp(cfDestino, fator)
+
+    -- 🔥 APLICA
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
-
-    local eyePos = root.Position + Vector3.new(0, CAM_HEIGHT, 0)
-    local dirCam = (aimPos - eyePos).Unit
-    local camPos = eyePos - dirCam * DISTANCIA_DA_CAMERA
-
-    camera.CFrame = CFrame.lookAt(camPos, aimPos)
+    camera.CFrame = camAtual
     camera.Focus = CFrame.new(aimPos)
 
-    -- GIRA O CORPO PRO ALVO
+    -- 🔥 ROTACIONA O CORPO SUAVE
     local flatAim = Vector3.new(aimPos.X, root.Position.Y, aimPos.Z)
-    root.CFrame = CFrame.new(root.Position, flatAim)
+    local cfCorpo = CFrame.new(root.Position, flatAim)
+    root.CFrame = root.CFrame:Lerp(cfCorpo, 0.35)
 
     atualizarHPBar()
 end
@@ -342,6 +363,7 @@ function ligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
 
+    camAtual = nil
     if camConn then camConn:Disconnect() end
     camConn = RunService.RenderStepped:Connect(atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
@@ -358,6 +380,8 @@ function desligarLock()
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
+
+    camAtual = nil
 
     if cameraSalva then
         pcall(function()
@@ -570,7 +594,7 @@ title.BackgroundTransparency = 1
 title.Text = "🎯 EZEK " .. VERSAO
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
-title.TextSize = 12
+title.TextSize = 11
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
@@ -969,6 +993,7 @@ end)
 
 player.CharacterRemoving:Connect(function()
     cameraSalva = false
+    camAtual = nil
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
     removerHitboxVisual()
@@ -976,9 +1001,9 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera: atrás de você mirando abaixo do peito")
+print("📷 Câmera Spring (avançada, sem travar)")
 print("═══════════════════════════════════════════")
