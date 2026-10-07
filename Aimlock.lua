@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock | 👁️ ESP | 💥 Hitbox
+--   🔒 Lock (câmera estilo DBK) | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -17,9 +17,22 @@ local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
 
--- 🔥 Salva estado da câmera
+-- 🔥 Config da câmera (estilo DBK)
+local CAM_HEIGHT = 3.7
+local DISTANCIA_DA_CAMERA = 13.2
+local LERP_CAM_NEAR = 0.55
+local LERP_CAM_FAR = 0.32
+local LERP_BODY = 0.52
+local MAX_DIST_CAM = 800
+
+-- 🔥 Predição
+local VELOCIDADE_BALA = 2600
+local PRED_MULT = 1.07
+local MIN_VEL = 4
+
 local cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
 local cameraSalva = false
+local camConn = nil
 
 local ativo = false
 local alvo = nil
@@ -274,7 +287,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: GIRA CORPO + CÂMERA ATRÁS DE VOCÊ
+-- 🔥 LOOP: CÂMERA ESTILO DBK (atrás + mira no centro)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -293,7 +306,7 @@ local function atualizar()
         return
     end
 
-    -- 🔥 SALVA ESTADO ORIGINAL DA CÂMERA (só 1 vez)
+    -- 🔥 SALVA ESTADO ORIGINAL DA CÂMERA
     if not cameraSalva then
         pcall(function()
             cameraOriginal.CameraType = camera.CameraType
@@ -304,28 +317,38 @@ local function atualizar()
         cameraSalva = true
     end
 
-    -- 🔥 Gira o corpo pro alvo
-    local minhaPos = root.Position
-    local posAlvo = parteAlvo.Position
-    local dir = posAlvo - minhaPos
-    local flat = Vector3.new(dir.X, 0, dir.Z)
-    if flat.Magnitude > 0.01 then
-        root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
+    -- 🔥 MIRA NO ALVO com predição
+    local aimPos = parteAlvo.Position
+    local velAlvo = Vector3.new()
+    local rootAlvo = alvo:FindFirstChild("HumanoidRootPart")
+    if rootAlvo then
+        velAlvo = rootAlvo.AssemblyLinearVelocity or Vector3.new()
     end
 
-    -- 🔥 FORÇA 3ª PESSOA ATRÁS DE VOCÊ OLHANDO PRO ALVO
+    if velAlvo.Magnitude >= MIN_VEL then
+        local distAte = (aimPos - camera.CFrame.Position).Magnitude
+        local tempoAte = (distAte / VELOCIDADE_BALA) * PRED_MULT
+        aimPos = aimPos + velAlvo * tempoAte
+    end
+
+    -- 🔥 CÂMERA ATRÁS DE VOCÊ OLHANDO PRO ALVO (com Lerp)
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
 
-    local flatDir = Vector3.new(dir.X, 0, dir.Z)
-    if flatDir.Magnitude < 0.01 then return end
-    flatDir = flatDir.Unit
+    local eyePos = root.Position + Vector3.new(0, CAM_HEIGHT, 0)
+    local dirCam = (aimPos - eyePos).Unit
+    local camPos = eyePos - dirCam * DISTANCIA_DA_CAMERA
 
-    local camPos = minhaPos - flatDir * 12 + Vector3.new(0, 3, 0)
+    local distCam = (aimPos - eyePos).Magnitude
+    local lerpAmt = LERP_CAM_NEAR - (distCam / MAX_DIST_CAM) * (LERP_CAM_NEAR - LERP_CAM_FAR)
 
-    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
-    camera.Focus = CFrame.new(posAlvo)
+    camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(camPos, aimPos), lerpAmt)
+    camera.Focus = CFrame.new(aimPos)
+
+    -- 🔥 GIRA O CORPO PRO ALVO (com Lerp)
+    local flatAim = Vector3.new(aimPos.X, root.Position.Y, aimPos.Z)
+    root.CFrame = root.CFrame:Lerp(CFrame.new(root.Position, flatAim), LERP_BODY)
 
     atualizarHPBar()
 end
@@ -343,8 +366,8 @@ function ligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
 
-    RunService:UnbindFromRenderStep("EZEK_LOCK")
-    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 1, atualizar)
+    if camConn then camConn:Disconnect() end
+    camConn = RunService.RenderStepped:Connect(atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
 end
 
@@ -353,14 +376,14 @@ function desligarLock()
     ativo = false
     alvo = nil
 
-    RunService:UnbindFromRenderStep("EZEK_LOCK")
+    if camConn then camConn:Disconnect() camConn = nil end
 
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
 
-    -- 🔥 RESTAURA ESTADO ORIGINAL DA CÂMERA
+    -- 🔥 RESTAURA ESTADO ORIGINAL
     if cameraSalva then
         pcall(function()
             camera.CameraType = cameraOriginal.CameraType or Enum.CameraType.Custom
@@ -982,6 +1005,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Lock ON: 3ª pessoa atrás de você")
-print("📷 Lock OFF: volta pro modo que você tava")
+print("📷 Câmera estilo DBK (atrás + mira no centro)")
 print("═══════════════════════════════════════════")
