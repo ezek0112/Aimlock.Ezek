@@ -480,6 +480,28 @@ function toggleESP()
     atualizarBotoes()
 end
 
+-- ══════════════════════════════════════════════════
+-- 🔥 FORÇA CÂMERA VOLTAR PRO SEU BONECO (quando lock OFF)
+-- ══════════════════════════════════════════════════
+task.spawn(function()
+    while task.wait(0.2) do
+        if not ativo then
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                pcall(function()
+                    if camera.CameraType ~= Enum.CameraType.Custom then
+                        camera.CameraType = Enum.CameraType.Custom
+                    end
+                    if camera.CameraSubject ~= hum then
+                        camera.CameraSubject = hum
+                    end
+                end)
+            end
+        end
+    end
+end)
+
 -- ============ GUI ============
 local CORES = {
     fundo = Color3.fromRGB(20,20,25), topo = Color3.fromRGB(30,30,40),
@@ -939,5 +961,5 @@ print("════════════════════════�
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
 print("⭕ Círculo azul = tamanho da hitbox em você")
-print("📷 Câmera: segue o alvo com zoom livre")
+print("📷 Câmera volta pro boneco quando lock tá OFF")
 print("═══════════════════════════════════════════")
