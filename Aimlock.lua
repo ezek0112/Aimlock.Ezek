@@ -17,6 +17,10 @@ local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
 
+-- 🔥 Salva estado da câmera
+local cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
+local cameraSalva = false
+
 local ativo = false
 local alvo = nil
 local espAtivo = false
@@ -289,7 +293,18 @@ local function atualizar()
         return
     end
 
-    -- Gira o corpo pro alvo
+    -- 🔥 SALVA ESTADO ORIGINAL DA CÂMERA (só 1 vez)
+    if not cameraSalva then
+        pcall(function()
+            cameraOriginal.CameraType = camera.CameraType
+            cameraOriginal.CameraSubject = camera.CameraSubject
+            cameraOriginal.FieldOfView = camera.FieldOfView
+            cameraOriginal.CameraMode = player.CameraMode
+        end)
+        cameraSalva = true
+    end
+
+    -- 🔥 Gira o corpo pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -298,14 +313,16 @@ local function atualizar()
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- Câmera atrás de você olhando pro alvo
-    camera.CameraType = Enum.CameraType.Scriptable
+    -- 🔥 FORÇA 3ª PESSOA ATRÁS DE VOCÊ OLHANDO PRO ALVO
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
+    end
 
     local flatDir = Vector3.new(dir.X, 0, dir.Z)
     if flatDir.Magnitude < 0.01 then return end
     flatDir = flatDir.Unit
 
-    local camPos = minhaPos - flatDir * 10 + Vector3.new(0, 3, 0)
+    local camPos = minhaPos - flatDir * 12 + Vector3.new(0, 3, 0)
 
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
     camera.Focus = CFrame.new(posAlvo)
@@ -343,10 +360,31 @@ function desligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
 
-    pcall(function()
-        camera.CameraType = Enum.CameraType.Custom
-        if hum then camera.CameraSubject = hum end
-    end)
+    -- 🔥 RESTAURA ESTADO ORIGINAL DA CÂMERA
+    if cameraSalva then
+        pcall(function()
+            camera.CameraType = cameraOriginal.CameraType or Enum.CameraType.Custom
+            if cameraOriginal.CameraSubject and cameraOriginal.CameraSubject.Parent then
+                camera.CameraSubject = cameraOriginal.CameraSubject
+            elseif hum then
+                camera.CameraSubject = hum
+            end
+            if cameraOriginal.FieldOfView then
+                camera.FieldOfView = cameraOriginal.FieldOfView
+            end
+            if cameraOriginal.CameraMode then
+                player.CameraMode = cameraOriginal.CameraMode
+            end
+        end)
+        cameraSalva = false
+        cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
+    else
+        pcall(function()
+            camera.CameraType = Enum.CameraType.Custom
+            if hum then camera.CameraSubject = hum end
+        end)
+    end
+
     print("🔓 Lock OFF")
 end
 
@@ -932,6 +970,7 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 player.CharacterRemoving:Connect(function()
+    cameraSalva = false
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
     removerHitboxVisual()
@@ -943,5 +982,6 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera atrás de você olhando pro alvo")
+print("📷 Lock ON: 3ª pessoa atrás de você")
+print("📷 Lock OFF: volta pro modo que você tava")
 print("═══════════════════════════════════════════")
