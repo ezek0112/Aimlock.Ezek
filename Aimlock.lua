@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v1 REWORK
---   🔒 Lock zero delay | 👁️ ESP completo | 📊 HP Bar
+--   EZEK LOCK + ESP + HITBOX - v1 REWORK
+--   🔒 Lock | 👁️ ESP | 📊 HP Bar | 💥 Hitbox Expander
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -13,40 +13,22 @@ local VERSAO = "v1 REWORK"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local DIST_CAM = 12
+local HITBOX_MULT = 3.5  -- 🔥 Multiplicador do hitbox (3.5 = 3.5x maior)
 
 local ativo = false
 local alvo = nil
 local espAtivo = false
-local transparenciasSalvas = {}
+local hitboxAtivo = false
 local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
 
+-- 🔥 Hitbox salva
+local hitboxSalvos = {}
+local hitboxModelo = nil
+
 -- 🔥 FILTROS DO ESP
 local filtros = { players = true, dummies = true, monstros = true }
-
--- ============ ESCONDE SEU BONECO ============
-local function esconderBoneco(esconder)
-    local char = player.Character
-    if not char then return end
-    if esconder then
-        for _, obj in ipairs(char:GetDescendants()) do
-            if obj:IsA("BasePart") or obj:IsA("Decal") or obj:IsA("Texture") then
-                if transparenciasSalvas[obj] == nil then
-                    transparenciasSalvas[obj] = obj.LocalTransparencyModifier
-                end
-                obj.LocalTransparencyModifier = 1
-            end
-        end
-    else
-        for obj, valor in pairs(transparenciasSalvas) do
-            if obj and obj.Parent then
-                obj.LocalTransparencyModifier = valor
-            end
-        end
-        transparenciasSalvas = {}
-    end
-end
 
 -- ============ DETECÇÃO DE VIDA ============
 local NOMES_VIDA = {"Health","HP","health","CurrentHealth","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints"}
@@ -146,6 +128,43 @@ local function acharAlvo()
         end
     end
     return melhor
+end
+
+-- ============ HITBOX EXPANDER ============
+local function restaurarHitbox()
+    for part, dados in pairs(hitboxSalvos) do
+        if part and part.Parent then
+            pcall(function()
+                part.Size = dados.size
+                part.CanCollide = dados.collide
+            end)
+        end
+    end
+    hitboxSalvos = {}
+    hitboxModelo = nil
+end
+
+local function aplicarHitbox(m)
+    if not m or not m.Parent then return end
+    restaurarHitbox()
+    hitboxModelo = m
+
+    for _, part in ipairs(m:GetDescendants()) do
+        if part:IsA("BasePart") then
+            -- Pula acessórios (chamados "Handle")
+            if part.Name ~= "Handle" then
+                hitboxSalvos[part] = {
+                    size = part.Size,
+                    collide = part.CanCollide
+                }
+                pcall(function()
+                    part.Size = part.Size * HITBOX_MULT
+                    part.CanCollide = false
+                end)
+            end
+        end
+    end
+    print("💥 Hitbox aplicado em: " .. m.Name)
 end
 
 -- ============ HP BAR DO ALVO ============
@@ -287,8 +306,12 @@ function ligarLock()
     alvo = t
     ativo = true
 
-    esconderBoneco(true)
     criarHPBar(t)
+
+    -- 🔥 Aplica hitbox se estiver ativo
+    if hitboxAtivo then
+        aplicarHitbox(t)
+    end
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
@@ -304,9 +327,11 @@ function desligarLock()
     alvo = nil
 
     RunService:UnbindFromRenderStep("EZEK_LOCK")
-    esconderBoneco(false)
 
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
+
+    -- 🔥 Remove hitbox
+    restaurarHitbox()
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
@@ -320,6 +345,21 @@ end
 
 function toggleLock()
     if ativo then desligarLock() else ligarLock() end
+    atualizarBotoes()
+end
+
+-- ============ HITBOX TOGGLE ============
+function toggleHitbox()
+    hitboxAtivo = not hitboxAtivo
+    if hitboxAtivo then
+        if ativo and alvo then
+            aplicarHitbox(alvo)
+        end
+        print("💥 Hitbox ON")
+    else
+        restaurarHitbox()
+        print("💥 Hitbox OFF")
+    end
     atualizarBotoes()
 end
 
@@ -436,7 +476,7 @@ function toggleESP()
     atualizarBotoes()
 end
 
--- ============ GUI (ESTILO v28) ============
+-- ============ GUI ============
 local CORES = {
     fundo = Color3.fromRGB(20,20,25), topo = Color3.fromRGB(30,30,40),
     botao = Color3.fromRGB(45,45,60), on = Color3.fromRGB(0,170,90),
@@ -451,7 +491,7 @@ sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.Parent = player:WaitForChild("PlayerGui")
 
-local tamW, tamH = 240, 420
+local tamW, tamH = 240, 470
 local tamanhoNormal = UDim2.new(0, tamW, 0, tamH)
 local tamanhoMin = UDim2.new(0, tamW, 0, 40)
 
@@ -467,7 +507,6 @@ Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 local ms = Instance.new("UIStroke")
 ms.Color = CORES.borda; ms.Thickness = 1.5; ms.Parent = main
 
--- TopBar
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundColor3 = CORES.topo
@@ -504,7 +543,6 @@ closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16
 closeBtn.Parent = topBar
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
--- Scroll
 local scroll = Instance.new("ScrollingFrame")
 scroll.Size = UDim2.new(1, -10, 1, -50)
 scroll.Position = UDim2.new(0, 5, 0, 45)
@@ -512,17 +550,16 @@ scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 6
 scroll.ScrollBarImageColor3 = CORES.borda
-scroll.CanvasSize = UDim2.new(0, 0, 0, 360)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 420)
 scroll.Parent = main
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -10, 0, 360)
+content.Size = UDim2.new(1, -10, 0, 420)
 content.BackgroundTransparency = 1
 content.Parent = scroll
 
--- Status
 local statusFrame = Instance.new("Frame")
-statusFrame.Size = UDim2.new(1, 0, 0, 60)
+statusFrame.Size = UDim2.new(1, 0, 0, 74)
 statusFrame.BackgroundColor3 = CORES.topo
 statusFrame.BorderSizePixel = 0
 statusFrame.Parent = content
@@ -532,7 +569,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 1, -12)
 statusLabel.Position = UDim2.new(0, 8, 0, 6)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "🔓 Lock: OFF\n👁️ ESP: OFF"
+statusLabel.Text = "🔓 Lock: OFF\n👁️ ESP: OFF\n💥 Hitbox: OFF"
 statusLabel.TextColor3 = CORES.textoFraco
 statusLabel.Font = Enum.Font.GothamMedium
 statusLabel.TextSize = 13
@@ -540,26 +577,25 @@ statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.TextYAlignment = Enum.TextYAlignment.Top
 statusLabel.Parent = statusFrame
 
--- Botões
 local function criarBotao(txt, y)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 42)
+    b.Size = UDim2.new(1, 0, 0, 38)
     b.Position = UDim2.new(0, 0, 0, y)
     b.BackgroundColor3 = CORES.botao
     b.Text = txt; b.TextColor3 = CORES.texto
-    b.Font = Enum.Font.GothamBold; b.TextSize = 15
+    b.Font = Enum.Font.GothamBold; b.TextSize = 14
     b.Parent = content
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
     return b
 end
 
-local btnLock = criarBotao("🔓 LOCK: OFF", 70)
-local btnEsp = criarBotao("👁️ ESP: OFF", 120)
+local btnLock = criarBotao("🔓 LOCK: OFF", 84)
+local btnEsp = criarBotao("👁️ ESP: OFF", 128)
+local btnHitbox = criarBotao("💥 HITBOX: OFF", 172)
 
--- Filtros
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
-filtroFrame.Position = UDim2.new(0, 0, 0, 170)
+filtroFrame.Position = UDim2.new(0, 0, 0, 216)
 filtroFrame.BackgroundColor3 = CORES.topo
 filtroFrame.BorderSizePixel = 0
 filtroFrame.Parent = content
@@ -631,10 +667,9 @@ criarCheck("👤 Players", "players", 26)
 criarCheck("🎯 Dummies", "dummies", 56)
 criarCheck("👹 Monstros", "monstros", 86)
 
--- Info box (mostra alvo atual quando locka)
 local infoBox = Instance.new("Frame")
 infoBox.Size = UDim2.new(1, 0, 0, 55)
-infoBox.Position = UDim2.new(0, 0, 0, 290)
+infoBox.Position = UDim2.new(0, 0, 0, 336)
 infoBox.BackgroundColor3 = CORES.topo
 infoBox.BorderSizePixel = 0
 infoBox.Visible = false
@@ -654,7 +689,6 @@ infoLabel.TextYAlignment = Enum.TextYAlignment.Top
 infoLabel.TextWrapped = true
 infoLabel.Parent = infoBox
 
--- Arrastar
 local function makeDraggable(frame, handle)
     handle = handle or frame
     local dragging, dragStart, startPos
@@ -678,7 +712,6 @@ end
 
 makeDraggable(main, topBar)
 
--- Minimizar
 local minimized = false
 minBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
@@ -687,7 +720,6 @@ minBtn.MouseButton1Click:Connect(function()
     minBtn.Text = minimized and "+" or "—"
 end)
 
--- Fechar + reabrir
 closeBtn.MouseButton1Click:Connect(function()
     main.Visible = false
     local reopen = Instance.new("TextButton")
@@ -705,7 +737,6 @@ closeBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Atualizar botões + status
 function atualizarBotoes()
     if ativo then
         btnLock.Text = "🔒 LOCK: ON"
@@ -721,9 +752,18 @@ function atualizarBotoes()
         btnEsp.Text = "👁️ ESP: OFF"
         btnEsp.BackgroundColor3 = CORES.botao
     end
+    if hitboxAtivo then
+        btnHitbox.Text = "💥 HITBOX: ON"
+        btnHitbox.BackgroundColor3 = CORES.on
+    else
+        btnHitbox.Text = "💥 HITBOX: OFF"
+        btnHitbox.BackgroundColor3 = CORES.botao
+    end
 
-    statusLabel.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n" .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF")
-    statusLabel.TextColor3 = (ativo or espAtivo) and CORES.on or CORES.textoFraco
+    statusLabel.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n"
+        .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF") .. "\n"
+        .. (hitboxAtivo and "💥 Hitbox: ON" or "💥 Hitbox: OFF")
+    statusLabel.TextColor3 = (ativo or espAtivo or hitboxAtivo) and CORES.on or CORES.textoFraco
 
     infoBox.Visible = ativo
     if ativo and alvo then
@@ -738,6 +778,7 @@ end
 
 btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
+btnHitbox.MouseButton1Click:Connect(toggleHitbox)
 
 -- ============ TECLADO + CONTROLE ============
 local r1, r2, l1, l2 = false, false, false, false
@@ -748,6 +789,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
+    if input.KeyCode == Enum.KeyCode.T then toggleHitbox() return end
 
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
@@ -786,12 +828,13 @@ end)
 player.CharacterRemoving:Connect(function()
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
+    restaurarHitbox()
 end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
 print("═══════════════════════════════════════════")
-print("🎮 Q = Lock | E = ESP")
+print("🎮 Q = Lock | E = ESP | T = Hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
 print("═══════════════════════════════════════════")
