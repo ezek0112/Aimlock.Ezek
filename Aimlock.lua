@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v26 - CÂMERA LIVRE (SEM FORÇAR PERSPECTIVA)
+-- AIMLOCK DO EZEK v28 - CÂMERA SEGUE ALVO (MANTÉM 1ª/3ª PESSOA)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -51,6 +51,9 @@ local moversContagem = 0
 _G.EZEK_LOCKED = false
 _G.EZEK_TARGET = nil
 
+-- 🔥 Cache de primeira pessoa
+local primeiraPessoaCache = false
+
 -- ============ DETECÇÃO VIA Last_Stunned ============
 local function estaStunado()
     local ultimoStun = player:GetAttribute("Last_Stunned")
@@ -58,6 +61,34 @@ local function estaStunado()
     local dif = workspace:GetServerTimeNow() - ultimoStun
     return dif >= 0 and dif < STUN_DURACAO
 end
+
+-- ============ DETECTA 1ª PESSOA ============
+task.spawn(function()
+    while task.wait(0.1) do
+        pcall(function()
+            -- Método 1: CameraMode oficial
+            if player.CameraMode == Enum.CameraMode.LockFirstPerson then
+                primeiraPessoaCache = true
+            else
+                -- Método 2: zoom máximo
+                local maxZoom = player.CameraMaxZoomDistance or 128
+                if maxZoom <= 0.5 then
+                    primeiraPessoaCache = true
+                else
+                    -- Método 3: distância da cabeça (só se não tá lockado)
+                    if not locked then
+                        local char = player.Character
+                        local head = char and char:FindFirstChild("Head")
+                        local cam = Workspace.CurrentCamera
+                        if head and cam and cam.CameraType == Enum.CameraType.Custom then
+                            primeiraPessoaCache = (cam.CFrame.Position - head.Position).Magnitude < 2.5
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
 
 -- ============ MATA MOVERS (SÓ COM LOCK) ============
 local moverAges = {}
@@ -344,7 +375,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v26 - CÂMERA LIVRE"
+title.Text = "🎯 EZEK v28 - CÂMERA SEGUE"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 11
@@ -755,7 +786,7 @@ local function updateInfo()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 CRIAR HP BAR (COM NÚMERO DE VIDA)
+-- 🔥 CRIAR HP BAR
 -- ══════════════════════════════════════════════════
 local function criarHPBar(model)
     if hpBarAlvo and hpBarAlvo.Parent then hpBarAlvo:Destroy() end
@@ -840,7 +871,56 @@ local function atualizarHPBar()
     end
 end
 
--- ============ UPDATE CORPO (só gira o boneco, NÃO mexe na câmera) ============
+-- ══════════════════════════════════════════════════
+-- 🔥 UPDATE CÂMERA (segue alvo, mantém 1ª/3ª pessoa)
+-- ══════════════════════════════════════════════════
+local function updateCamera()
+    if tick() < DEVE_RESETAR_ATE then return end
+    if not locked or not target or not target.Parent then return end
+    
+    camera = Workspace.CurrentCamera
+    if not camera then return end
+    
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
+    if not myRoot or not head then return end
+    
+    local part = getAimPart(target)
+    if not part then return end
+    
+    local alvoPos = part.Position
+    if part.Name == "Head" then alvoPos = alvoPos + Vector3.new(0, -0.3, 0) end
+    
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
+    end
+    
+    if primeiraPessoaCache then
+        -- 1ª pessoa: câmera na cabeça olhando pro alvo
+        local eyePos = head.Position + Vector3.new(0, 0.5, 0)
+        local dir = alvoPos - eyePos
+        if dir.Magnitude < 0.1 then return end
+        camera.CFrame = CFrame.lookAt(eyePos, eyePos + dir.Unit)
+    else
+        -- 3ª pessoa: câmera atrás do boneco olhando pro alvo
+        local eyePos = myRoot.Position + Vector3.new(0, 3.5, 0)
+        local dir = alvoPos - eyePos
+        if dir.Magnitude < 0.1 then return end
+        dir = dir.Unit
+        local camPos = eyePos - dir * DISTANCIA_CAMERA
+        camera.CFrame = CFrame.lookAt(camPos, alvoPos)
+    end
+    camera.Focus = CFrame.new(alvoPos)
+    
+    updateInfo()
+    atualizarHPBar()
+end
+
+-- ============ UPDATE CORPO ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -859,7 +939,6 @@ local function updateBody()
 
     if hum.AutoRotate ~= false then hum.AutoRotate = false end
 
-    -- 🔥 Corpo segue a direção da CÂMERA (que o jogador controla livremente)
     local cam = Workspace.CurrentCamera
     if not cam then return end
 
@@ -892,11 +971,12 @@ task.spawn(function()
             if bF.Magnitude > 0.01 and cF.Magnitude > 0.01 then
                 local ang = math.deg(math.acos(math.clamp(bF.Unit:Dot(cF.Unit), -1, 1)))
                 local status = ang < 15 and "✅ OK" or (ang < 45 and "⚠️ MEDIO" or "🚨 TRAVADO")
+                local pessoa = primeiraPessoaCache and "1ª" or "3ª"
 
                 local lockIcon = locked and "🔒" or "🔓"
                 debugLabel.Text = string.format(
-                    "📐 DEBUG %s\nBody: X=%.2f Z=%.2f\nCam:  X=%.2f Z=%.2f\nAngulo: %.0f° %s\nMovers: %d",
-                    lockIcon, bLook.X, bLook.Z, cLook.X, cLook.Z, ang, status, moversContagem
+                    "📐 DEBUG %s (%s)\nBody: X=%.2f Z=%.2f\nCam:  X=%.2f Z=%.2f\nAngulo: %.0f° %s\nMovers: %d",
+                    lockIcon, pessoa, bLook.X, bLook.Z, cLook.X, cLook.Z, ang, status, moversContagem
                 )
                 debugLabel.TextColor3 = ang < 15 and Color3.fromRGB(0, 255, 120) or (ang < 45 and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 60, 60))
             end
@@ -1017,7 +1097,7 @@ local function toggleESP()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOCK TARGET (SEM MEXER NA CÂMERA)
+-- 🔥 LOCK TARGET
 -- ══════════════════════════════════════════════════
 function lockTarget(novoAlvo)
     DEVE_RESETAR_ATE = 0
@@ -1035,14 +1115,14 @@ function lockTarget(novoAlvo)
     infoBox.Visible = true
     updateInfo()
     criarHPBar(novoAlvo)
-    
-    -- 🔥 NÃO MEXE NA CÂMERA — ela fica livre (Custom)
+
     pcall(function()
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum.AutoRotate = false end
     end)
-    
-    -- 🔥 Só binda o updateBody (corpo segue câmera, SEM reposicionar câmera)
+
+    RunService:UnbindFromRenderStep("EZEK_Cam")
+    RunService:BindToRenderStep("EZEK_Cam", Enum.RenderPriority.Camera.Value + 1, updateCamera)
     RunService:UnbindFromRenderStep("EZEK_Body")
     RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 10, updateBody)
     atualizarStatus()
@@ -1061,7 +1141,17 @@ function unlockTarget()
     infoBox.Visible = false
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
 
+    RunService:UnbindFromRenderStep("EZEK_Cam")
     RunService:UnbindFromRenderStep("EZEK_Body")
+
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if hum then cam.CameraSubject = hum end
+        end
+    end)
 
     pcall(function()
         local char = player.Character
@@ -1090,7 +1180,7 @@ lockBtn.MouseButton1Click:Connect(toggleLock)
 espBtn.MouseButton1Click:Connect(toggleESP)
 
 -- ══════════════════════════════════════════════════
--- 🔥 TECLAS (UNIVERSAL + RESET DE BOTÕES)
+-- 🔥 TECLAS
 -- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
@@ -1153,7 +1243,12 @@ player.CharacterRemoving:Connect(function()
     _G.EZEK_LOCKED = false
     _G.EZEK_TARGET = nil
     pcall(function()
+        RunService:UnbindFromRenderStep("EZEK_Cam")
         RunService:UnbindFromRenderStep("EZEK_Body")
+    end)
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam then cam.CameraType = Enum.CameraType.Custom end
     end)
     pcall(function()
         if lockBtn then
@@ -1173,6 +1268,10 @@ player.CharacterAdded:Connect(function(newChar)
     _G.EZEK_LOCKED = false
     _G.EZEK_TARGET = nil
     if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
+    pcall(function()
+        local cam = Workspace.CurrentCamera
+        if cam then cam.CameraType = Enum.CameraType.Custom end
+    end)
     local hum = newChar:WaitForChild("Humanoid", 5)
     if hum then
         hum.AutoRotate = true
@@ -1196,6 +1295,13 @@ task.spawn(function()
 
         if tick() < DEVE_RESETAR_ATE then
             pcall(function()
+                local cam = Workspace.CurrentCamera
+                if cam and cam.CameraType == Enum.CameraType.Scriptable then
+                    cam.CameraType = Enum.CameraType.Custom
+                end
+            end)
+
+            pcall(function()
                 local char = player.Character
                 if char then
                     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1214,6 +1320,7 @@ task.spawn(function()
                 _G.EZEK_LOCKED = false
                 _G.EZEK_TARGET = nil
                 pcall(function()
+                    RunService:UnbindFromRenderStep("EZEK_Cam")
                     RunService:UnbindFromRenderStep("EZEK_Body")
                 end)
                 pcall(function()
@@ -1230,7 +1337,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v26 - CÂMERA LIVRE!")
-print("📷 Câmera NÃO muda de perspectiva ao lockar")
-print("🔄 Corpo segue a câmera normalmente")
+print("✅ AIMLOCK DO EZEK v28 - CÂMERA SEGUE ALVO!")
+print("📷 1ª pessoa: câmera na cabeça olhando pro alvo")
+print("📷 3ª pessoa: câmera atrás do boneco olhando pro alvo")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
