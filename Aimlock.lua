@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v25 ESPECIAL - UNIVERSAL + TOGGLE CORRIGIDO
+-- AIMLOCK DO EZEK v26 - CÂMERA LIVRE (SEM FORÇAR PERSPECTIVA)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -35,8 +35,6 @@ local espHighlights = {}
 local espLabels = {}
 local espConnection = nil
 local hpBarAlvo = nil
-local cameraTypeAntigo = nil
-local cameraModeAntigo = nil
 local escalaW = 1.0
 local escalaH = 1.0
 local filtros = { players = true, dummies = true, monstros = true }
@@ -69,21 +67,21 @@ local function matarMovers()
     if not char then return end
     local agora = tick()
     local vistos = {}
-    
+
     for _, obj in ipairs(char:GetDescendants()) do
         if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")
            or obj:IsA("BodyGyro") or obj:IsA("BodyPosition")
            or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity")
            or obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
-            
+
             vistos[obj] = true
-            
+
             if not moverAges[obj] then
                 moverAges[obj] = agora
             end
-            
+
             local idade = agora - moverAges[obj]
-            
+
             if obj:IsA("LinearVelocity") or obj:IsA("AngularVelocity") then
                 if idade > 0.5 then
                     pcall(function()
@@ -98,7 +96,7 @@ local function matarMovers()
             end
         end
     end
-    
+
     for obj, _ in pairs(moverAges) do
         if not vistos[obj] or not obj.Parent then
             moverAges[obj] = nil
@@ -121,10 +119,10 @@ task.spawn(function()
     while task.wait(0.1) do
         pcall(function()
             if not locked then return end
-            
+
             local char = player.Character
             if not char then return end
-            
+
             local partesCorpo = {
                 ["HumanoidRootPart"] = true,
                 ["Torso"] = true, ["UpperTorso"] = true, ["LowerTorso"] = true,
@@ -136,23 +134,23 @@ task.spawn(function()
                 ["LeftUpperLeg"] = true, ["LeftLowerLeg"] = true, ["LeftFoot"] = true,
                 ["RightUpperLeg"] = true, ["RightLowerLeg"] = true, ["RightFoot"] = true,
             }
-            
+
             for _, obj in ipairs(char:GetDescendants()) do
                 if obj:IsA("Weld") or obj:IsA("WeldConstraint") then
                     local parent = obj.Parent
                     local parentNome = parent.Name
-                    
+
                     if not partesCorpo[parentNome] and parent ~= char then
                         local nome = string.lower(obj.Name)
                         local suspeito = nome == "weld"
                             or nome:find("tang") or nome:find("boss") or nome:find("hit")
                             or nome:find("stun") or nome:find("root") or nome:find("knock")
                             or nome:find("pull") or nome:find("grab") or nome:find("trap")
-                        
+
                         if suspeito then
                             local parte0 = obj.Part0 and obj.Part0.Name or ""
                             local parte1 = obj.Part1 and obj.Part1.Name or ""
-                            
+
                             if not partesCorpo[parte0] and not partesCorpo[parte1] then
                                 pcall(function() obj:Destroy() end)
                             end
@@ -216,7 +214,7 @@ RunService.RenderStepped:Connect(function()
     local hum = char:FindFirstChildOfClass("Humanoid")
     local cam = Workspace.CurrentCamera
     if not hum or not cam then return end
-    
+
     if locked then
         if hum.MoveDirection.Magnitude < 0.1 then
             local camLook = cam.CFrame.LookVector
@@ -238,12 +236,12 @@ task.spawn(function()
     while task.wait(0.1) do
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        
+
         if hum and hum.Health <= 0 and locked then
             pcall(function() unlockTarget() end)
             print("💀 Morreu! Lock desligado")
         end
-        
+
         if locked and (not target or not target.Parent) then
             pcall(function() unlockTarget() end)
             print("🎯 Target sumiu! Lock desligado")
@@ -346,10 +344,10 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v25 ESPECIAL"
+title.Text = "🎯 EZEK v26 - CÂMERA LIVRE"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
-title.TextSize = 12
+title.TextSize = 11
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
@@ -764,7 +762,7 @@ local function criarHPBar(model)
     if not model or not model.Parent then return end
     local root = getAimPart(model)
     if not root then return end
-    
+
     local bb = Instance.new("BillboardGui")
     bb.Adornee = root
     bb.Size = UDim2.new(0, 200, 0, 50)
@@ -773,7 +771,7 @@ local function criarHPBar(model)
     bb.MaxDistance = 1000
     bb.Parent = model
     hpBarAlvo = bb
-    
+
     local lbl = Instance.new("TextLabel")
     lbl.Name = "Lbl"
     lbl.Size = UDim2.new(1, 0, 0, 16)
@@ -785,7 +783,7 @@ local function criarHPBar(model)
     lbl.Font = Enum.Font.GothamBold
     lbl.TextSize = 13
     lbl.Parent = bb
-    
+
     local bg = Instance.new("Frame")
     bg.Name = "BarBg"
     bg.Size = UDim2.new(1, 0, 0, 14)
@@ -794,7 +792,7 @@ local function criarHPBar(model)
     bg.BorderSizePixel = 0
     bg.Parent = bb
     Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 7)
-    
+
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
     fill.Size = UDim2.new(1, 0, 1, 0)
@@ -802,7 +800,7 @@ local function criarHPBar(model)
     fill.BorderSizePixel = 0
     fill.Parent = bg
     Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 7)
-    
+
     local hpLbl = Instance.new("TextLabel")
     hpLbl.Name = "HpLbl"
     hpLbl.Size = UDim2.new(1, 0, 0, 16)
@@ -821,7 +819,7 @@ local function atualizarHPBar()
     local hp, maxHp = getHealth(target)
     if not hp then return end
     local pct = math.clamp(hp / math.max(maxHp or 100, 1), 0, 1)
-    
+
     local bg = hpBarAlvo:FindFirstChild("BarBg")
     if bg then
         local fill = bg:FindFirstChild("Fill")
@@ -832,7 +830,7 @@ local function atualizarHPBar()
             else fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50) end
         end
     end
-    
+
     local hpLbl = hpBarAlvo:FindFirstChild("HpLbl")
     if hpLbl then
         hpLbl.Text = string.format("%d/%d", math.floor(hp), math.floor(maxHp or 100))
@@ -842,61 +840,7 @@ local function atualizarHPBar()
     end
 end
 
--- ============ RESET CÂMERA ============
-local function resetarCamera()
-    pcall(function()
-        local cam = Workspace.CurrentCamera
-        if cam then
-            cam.CameraType = Enum.CameraType.Custom
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then cam.CameraSubject = hum end
-        end
-        player.CameraMode = Enum.CameraMode.Classic
-    end)
-end
-
--- ============ UPDATE CÂMERA ============
-local function updateCamera()
-    if tick() < DEVE_RESETAR_ATE then return end
-    if not locked or not target or not target.Parent then return end
-    
-    camera = Workspace.CurrentCamera
-    if not camera then return end
-    
-    local char = player.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return end
-    local myRoot = char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-    
-    local part = getAimPart(target)
-    if not part then return end
-
-    local bonecoPos = myRoot.Position
-    local alvoPos = part.Position
-    if part.Name == "Head" then alvoPos = alvoPos + Vector3.new(0, -0.3, 0) end
-
-    local eyePos = bonecoPos + Vector3.new(0, 3.5, 0)
-    local dir = alvoPos - eyePos
-    if dir.Magnitude < 0.1 then return end
-    dir = dir.Unit
-
-    local camPos = eyePos - dir * DISTANCIA_CAMERA
-    
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
-    end
-    
-    camera.CFrame = CFrame.lookAt(camPos, alvoPos)
-    camera.Focus = CFrame.new(alvoPos)
-    
-    updateInfo()
-    atualizarHPBar()
-end
-
--- ============ UPDATE CORPO ============
+-- ============ UPDATE CORPO (só gira o boneco, NÃO mexe na câmera) ============
 local function updateBody()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
@@ -905,24 +849,25 @@ local function updateBody()
     local myRoot = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not myRoot or not hum or hum.Health <= 0 then return end
-    
+
     matarMovers()
-    
+
     if estaStunado() or tick() - ultimoHitTime < HIT_JANELA then
         if hum.AutoRotate ~= true then hum.AutoRotate = true end
         return
     end
-    
+
     if hum.AutoRotate ~= false then hum.AutoRotate = false end
-    
-    camera = Workspace.CurrentCamera
-    if not camera then return end
-    
-    local camLook = camera.CFrame.LookVector
+
+    -- 🔥 Corpo segue a direção da CÂMERA (que o jogador controla livremente)
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+
+    local camLook = cam.CFrame.LookVector
     local flat = Vector3.new(camLook.X, 0, camLook.Z)
     if flat.Magnitude < 0.01 then return end
     flat = flat.Unit
-    
+
     local destino = myRoot.Position + flat
     myRoot.CFrame = myRoot.CFrame:Lerp(
         CFrame.lookAt(myRoot.Position, destino),
@@ -937,17 +882,17 @@ task.spawn(function()
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local cam = Workspace.CurrentCamera
-        
+
         if root and cam and hum then
             local bLook = root.CFrame.LookVector
             local cLook = cam.CFrame.LookVector
             local bF = Vector3.new(bLook.X, 0, bLook.Z)
             local cF = Vector3.new(cLook.X, 0, cLook.Z)
-            
+
             if bF.Magnitude > 0.01 and cF.Magnitude > 0.01 then
                 local ang = math.deg(math.acos(math.clamp(bF.Unit:Dot(cF.Unit), -1, 1)))
                 local status = ang < 15 and "✅ OK" or (ang < 45 and "⚠️ MEDIO" or "🚨 TRAVADO")
-                
+
                 local lockIcon = locked and "🔒" or "🔓"
                 debugLabel.Text = string.format(
                     "📐 DEBUG %s\nBody: X=%.2f Z=%.2f\nCam:  X=%.2f Z=%.2f\nAngulo: %.0f° %s\nMovers: %d",
@@ -1072,16 +1017,16 @@ local function toggleESP()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOCK TARGET
+-- 🔥 LOCK TARGET (SEM MEXER NA CÂMERA)
 -- ══════════════════════════════════════════════════
 function lockTarget(novoAlvo)
     DEVE_RESETAR_ATE = 0
     matarMovers()
-    
+
     local alvoAtualizado = acharAlvo() or novoAlvo
     target = alvoAtualizado
     novoAlvo = alvoAtualizado
-    
+
     locked = true
     _G.EZEK_LOCKED = true
     _G.EZEK_TARGET = novoAlvo
@@ -1090,22 +1035,21 @@ function lockTarget(novoAlvo)
     infoBox.Visible = true
     updateInfo()
     criarHPBar(novoAlvo)
-    cameraTypeAntigo = camera.CameraType
-    cameraModeAntigo = player.CameraMode
-    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- 🔥 NÃO MEXE NA CÂMERA — ela fica livre (Custom)
     pcall(function()
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum.AutoRotate = false end
     end)
-    RunService:UnbindFromRenderStep("EZEK_Cam")
-    RunService:BindToRenderStep("EZEK_Cam", Enum.RenderPriority.Camera.Value + 1, updateCamera)
+    
+    -- 🔥 Só binda o updateBody (corpo segue câmera, SEM reposicionar câmera)
     RunService:UnbindFromRenderStep("EZEK_Body")
     RunService:BindToRenderStep("EZEK_Body", Enum.RenderPriority.Character.Value + 10, updateBody)
     atualizarStatus()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 UNLOCK TARGET (RESET COMPLETO)
+-- 🔥 UNLOCK TARGET
 -- ══════════════════════════════════════════════════
 function unlockTarget()
     locked = false
@@ -1116,23 +1060,9 @@ function unlockTarget()
     lockBtn.BackgroundColor3 = CORES.botao
     infoBox.Visible = false
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
-    
-    RunService:UnbindFromRenderStep("EZEK_Cam")
+
     RunService:UnbindFromRenderStep("EZEK_Body")
-    
-    pcall(function()
-        local cam = Workspace.CurrentCamera
-        if cam then
-            cam.CameraType = Enum.CameraType.Custom
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then 
-                cam.CameraSubject = hum 
-            end
-        end
-        player.CameraMode = Enum.CameraMode.Classic
-    end)
-    
+
     pcall(function()
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1143,22 +1073,7 @@ function unlockTarget()
             hum:ChangeState(Enum.HumanoidStateType.Running)
         end
     end)
-    
-    task.wait(0.05)
-    
-    pcall(function()
-        local cam = Workspace.CurrentCamera
-        if cam and cam.CameraType ~= Enum.CameraType.Custom then
-            cam.CameraType = Enum.CameraType.Custom
-        end
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.AutoRotate = true
-            hum:ChangeState(Enum.HumanoidStateType.Running)
-        end
-    end)
-    
+
     atualizarStatus()
 end
 
@@ -1185,9 +1100,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
         or input.KeyCode == Enum.KeyCode.ButtonR2
         or input.KeyCode == Enum.KeyCode.ButtonL1 
         or input.KeyCode == Enum.KeyCode.ButtonL2
-    
+
     if gp and not isControle then return end
-    
+
     if input.KeyCode == Enum.KeyCode.Q then 
         toggleLock()
         return
@@ -1196,12 +1111,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
         toggleESP() 
         return
     end
-    
+
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
-    
+
     if r1 and r2 then
         local a = tick()
         if a - ultLock > 0.8 then 
@@ -1211,7 +1126,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             r2 = false
         end
     end
-    
+
     if l1 and l2 then
         local a = tick()
         if a - ultEsp > 0.8 then 
@@ -1238,10 +1153,8 @@ player.CharacterRemoving:Connect(function()
     _G.EZEK_LOCKED = false
     _G.EZEK_TARGET = nil
     pcall(function()
-        RunService:UnbindFromRenderStep("EZEK_Cam")
         RunService:UnbindFromRenderStep("EZEK_Body")
     end)
-    resetarCamera()
     pcall(function()
         if lockBtn then
             lockBtn.Text = "🔓 LOCK: OFF"
@@ -1260,9 +1173,6 @@ player.CharacterAdded:Connect(function(newChar)
     _G.EZEK_LOCKED = false
     _G.EZEK_TARGET = nil
     if Workspace.CurrentCamera then camera = Workspace.CurrentCamera end
-    resetarCamera()
-    task.wait(0.3)
-    resetarCamera()
     local hum = newChar:WaitForChild("Humanoid", 5)
     if hum then
         hum.AutoRotate = true
@@ -1283,15 +1193,8 @@ task.spawn(function()
                 DEVE_RESETAR_ATE = tick() + 3
             end
         end
-        
+
         if tick() < DEVE_RESETAR_ATE then
-            pcall(function()
-                local cam = Workspace.CurrentCamera
-                if cam and cam.CameraType == Enum.CameraType.Scriptable then
-                    cam.CameraType = Enum.CameraType.Custom
-                end
-            end)
-            
             pcall(function()
                 local char = player.Character
                 if char then
@@ -1304,14 +1207,13 @@ task.spawn(function()
                     end
                 end
             end)
-            
+
             if locked then
                 locked = false
                 target = nil
                 _G.EZEK_LOCKED = false
                 _G.EZEK_TARGET = nil
                 pcall(function()
-                    RunService:UnbindFromRenderStep("EZEK_Cam")
                     RunService:UnbindFromRenderStep("EZEK_Body")
                 end)
                 pcall(function()
@@ -1328,8 +1230,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v25 ESPECIAL!")
-print("🌐 Universal - R1+R2 funciona em qualquer jogo")
-print("🔄 Toggle liga E desliga sem travar")
-print("❤️ HP do alvo aparece em cima do monstro")
+print("✅ AIMLOCK DO EZEK v26 - CÂMERA LIVRE!")
+print("📷 Câmera NÃO muda de perspectiva ao lockar")
+print("🔄 Corpo segue a câmera normalmente")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
