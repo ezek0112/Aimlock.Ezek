@@ -436,17 +436,13 @@ function toggleESP()
     atualizarBotoes()
 end
 
--- ============ GUI ============
+-- ============ GUI (ESTILO v28) ============
 local CORES = {
-    fundo = Color3.fromRGB(20,20,25),
-    topo = Color3.fromRGB(30,30,40),
-    botao = Color3.fromRGB(45,45,60),
-    on = Color3.fromRGB(0,170,90),
-    texto = Color3.fromRGB(240,240,240),
-    textoFraco = Color3.fromRGB(160,160,170),
-    borda = Color3.fromRGB(90,90,120),
-    checkOn = Color3.fromRGB(0,170,90),
-    checkOff = Color3.fromRGB(60,60,75),
+    fundo = Color3.fromRGB(20,20,25), topo = Color3.fromRGB(30,30,40),
+    botao = Color3.fromRGB(45,45,60), on = Color3.fromRGB(0,170,90),
+    off = Color3.fromRGB(180,50,50), texto = Color3.fromRGB(240,240,240),
+    textoFraco = Color3.fromRGB(160,160,170), borda = Color3.fromRGB(90,90,120),
+    checkOn = Color3.fromRGB(0,170,90), checkOff = Color3.fromRGB(60,60,75),
 }
 
 local sg = Instance.new("ScreenGui")
@@ -455,27 +451,33 @@ sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.Parent = player:WaitForChild("PlayerGui")
 
+local tamW, tamH = 240, 420
+local tamanhoNormal = UDim2.new(0, tamW, 0, tamH)
+local tamanhoMin = UDim2.new(0, tamW, 0, 40)
+
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 180, 0, 290)
-main.Position = UDim2.new(1, -200, 0, 100)
+main.Size = tamanhoNormal
+main.Position = UDim2.new(0, 20, 0, 80)
 main.BackgroundColor3 = CORES.fundo
 main.BorderSizePixel = 0
 main.Active = true
+main.ClipsDescendants = true
 main.Parent = sg
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 local ms = Instance.new("UIStroke")
 ms.Color = CORES.borda; ms.Thickness = 1.5; ms.Parent = main
 
+-- TopBar
 local topBar = Instance.new("Frame")
-topBar.Size = UDim2.new(1, 0, 0, 32)
+topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundColor3 = CORES.topo
 topBar.BorderSizePixel = 0
 topBar.Parent = main
 Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -12, 1, 0)
-title.Position = UDim2.new(0, 10, 0, 0)
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "🎯 EZEK " .. VERSAO
 title.TextColor3 = CORES.texto
@@ -484,45 +486,102 @@ title.TextSize = 12
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = topBar
 
-local btnLock = Instance.new("TextButton")
-btnLock.Size = UDim2.new(1, -16, 0, 36)
-btnLock.Position = UDim2.new(0, 8, 0, 40)
-btnLock.BackgroundColor3 = CORES.botao
-btnLock.TextColor3 = CORES.texto
-btnLock.Font = Enum.Font.GothamBold
-btnLock.TextSize = 13
-btnLock.Text = "🔓 LOCK: OFF"
-btnLock.Parent = main
-Instance.new("UICorner", btnLock).CornerRadius = UDim.new(0, 8)
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 30, 0, 30)
+minBtn.Position = UDim2.new(1, -70, 0, 5)
+minBtn.BackgroundColor3 = CORES.botao
+minBtn.Text = "—"; minBtn.TextColor3 = CORES.texto
+minBtn.Font = Enum.Font.GothamBold; minBtn.TextSize = 18
+minBtn.Parent = topBar
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
-local btnEsp = Instance.new("TextButton")
-btnEsp.Size = UDim2.new(1, -16, 0, 36)
-btnEsp.Position = UDim2.new(0, 8, 0, 82)
-btnEsp.BackgroundColor3 = CORES.botao
-btnEsp.TextColor3 = CORES.texto
-btnEsp.Font = Enum.Font.GothamBold
-btnEsp.TextSize = 13
-btnEsp.Text = "👁️ ESP: OFF"
-btnEsp.Parent = main
-Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0, 8)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = CORES.off
+closeBtn.Text = "✕"; closeBtn.TextColor3 = CORES.texto
+closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 16
+closeBtn.Parent = topBar
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
-local filtroTit = Instance.new("TextLabel")
-filtroTit.Size = UDim2.new(1, -16, 0, 18)
-filtroTit.Position = UDim2.new(0, 8, 0, 126)
-filtroTit.BackgroundTransparency = 1
-filtroTit.Text = "🎛️ Filtros do ESP"
-filtroTit.TextColor3 = CORES.textoFraco
-filtroTit.Font = Enum.Font.GothamBold
-filtroTit.TextSize = 11
-filtroTit.TextXAlignment = Enum.TextXAlignment.Left
-filtroTit.Parent = main
+-- Scroll
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -10, 1, -50)
+scroll.Position = UDim2.new(0, 5, 0, 45)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 6
+scroll.ScrollBarImageColor3 = CORES.borda
+scroll.CanvasSize = UDim2.new(0, 0, 0, 360)
+scroll.Parent = main
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -10, 0, 360)
+content.BackgroundTransparency = 1
+content.Parent = scroll
+
+-- Status
+local statusFrame = Instance.new("Frame")
+statusFrame.Size = UDim2.new(1, 0, 0, 60)
+statusFrame.BackgroundColor3 = CORES.topo
+statusFrame.BorderSizePixel = 0
+statusFrame.Parent = content
+Instance.new("UICorner", statusFrame).CornerRadius = UDim.new(0, 8)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -16, 1, -12)
+statusLabel.Position = UDim2.new(0, 8, 0, 6)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "🔓 Lock: OFF\n👁️ ESP: OFF"
+statusLabel.TextColor3 = CORES.textoFraco
+statusLabel.Font = Enum.Font.GothamMedium
+statusLabel.TextSize = 13
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+statusLabel.Parent = statusFrame
+
+-- Botões
+local function criarBotao(txt, y)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 42)
+    b.Position = UDim2.new(0, 0, 0, y)
+    b.BackgroundColor3 = CORES.botao
+    b.Text = txt; b.TextColor3 = CORES.texto
+    b.Font = Enum.Font.GothamBold; b.TextSize = 15
+    b.Parent = content
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    return b
+end
+
+local btnLock = criarBotao("🔓 LOCK: OFF", 70)
+local btnEsp = criarBotao("👁️ ESP: OFF", 120)
+
+-- Filtros
+local filtroFrame = Instance.new("Frame")
+filtroFrame.Size = UDim2.new(1, 0, 0, 110)
+filtroFrame.Position = UDim2.new(0, 0, 0, 170)
+filtroFrame.BackgroundColor3 = CORES.topo
+filtroFrame.BorderSizePixel = 0
+filtroFrame.Parent = content
+Instance.new("UICorner", filtroFrame).CornerRadius = UDim.new(0, 8)
+
+local fTitulo = Instance.new("TextLabel")
+fTitulo.Size = UDim2.new(1, -12, 0, 18)
+fTitulo.Position = UDim2.new(0, 8, 0, 4)
+fTitulo.BackgroundTransparency = 1
+fTitulo.Text = "🎛️ Filtros do ESP"
+fTitulo.TextColor3 = CORES.textoFraco
+fTitulo.Font = Enum.Font.GothamBold
+fTitulo.TextSize = 11
+fTitulo.TextXAlignment = Enum.TextXAlignment.Left
+fTitulo.Parent = filtroFrame
 
 local function criarCheck(texto, chave, y)
     local cf = Instance.new("Frame")
     cf.Size = UDim2.new(1, -16, 0, 26)
     cf.Position = UDim2.new(0, 8, 0, y)
     cf.BackgroundTransparency = 1
-    cf.Parent = main
+    cf.Parent = filtroFrame
 
     local box = Instance.new("TextButton")
     box.Size = UDim2.new(0, 22, 0, 22)
@@ -542,7 +601,7 @@ local function criarCheck(texto, chave, y)
     lb.Text = texto
     lb.TextColor3 = CORES.texto
     lb.Font = Enum.Font.GothamMedium
-    lb.TextSize = 12
+    lb.TextSize = 13
     lb.TextXAlignment = Enum.TextXAlignment.Left
     lb.Parent = cf
 
@@ -568,22 +627,85 @@ local function criarCheck(texto, chave, y)
     end)
 end
 
-criarCheck("👤 Players", "players", 148)
-criarCheck("🎯 Dummies", "dummies", 178)
-criarCheck("👹 Monstros", "monstros", 208)
+criarCheck("👤 Players", "players", 26)
+criarCheck("🎯 Dummies", "dummies", 56)
+criarCheck("👹 Monstros", "monstros", 86)
 
--- Versão no rodapé
-local versaoLbl = Instance.new("TextLabel")
-versaoLbl.Size = UDim2.new(1, -16, 0, 14)
-versaoLbl.Position = UDim2.new(0, 8, 1, -18)
-versaoLbl.BackgroundTransparency = 1
-versaoLbl.Text = "⚡ " .. VERSAO
-versaoLbl.TextColor3 = CORES.textoFraco
-versaoLbl.Font = Enum.Font.GothamBold
-versaoLbl.TextSize = 10
-versaoLbl.TextXAlignment = Enum.TextXAlignment.Center
-versaoLbl.Parent = main
+-- Info box (mostra alvo atual quando locka)
+local infoBox = Instance.new("Frame")
+infoBox.Size = UDim2.new(1, 0, 0, 55)
+infoBox.Position = UDim2.new(0, 0, 0, 290)
+infoBox.BackgroundColor3 = CORES.topo
+infoBox.BorderSizePixel = 0
+infoBox.Visible = false
+infoBox.Parent = content
+Instance.new("UICorner", infoBox).CornerRadius = UDim.new(0, 8)
 
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -16, 1, -12)
+infoLabel.Position = UDim2.new(0, 8, 0, 6)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = ""
+infoLabel.TextColor3 = CORES.texto
+infoLabel.Font = Enum.Font.GothamMedium
+infoLabel.TextSize = 12
+infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+infoLabel.TextWrapped = true
+infoLabel.Parent = infoBox
+
+-- Arrastar
+local function makeDraggable(frame, handle)
+    handle = handle or frame
+    local dragging, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(main, topBar)
+
+-- Minimizar
+local minimized = false
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    TweenService:Create(main, TweenInfo.new(0.25), {Size = minimized and tamanhoMin or tamanhoNormal}):Play()
+    scroll.Visible = not minimized
+    minBtn.Text = minimized and "+" or "—"
+end)
+
+-- Fechar + reabrir
+closeBtn.MouseButton1Click:Connect(function()
+    main.Visible = false
+    local reopen = Instance.new("TextButton")
+    reopen.Size = UDim2.new(0, 50, 0, 50)
+    reopen.Position = UDim2.new(1, -70, 0, 20)
+    reopen.BackgroundColor3 = CORES.topo
+    reopen.Text = "🎯"
+    reopen.TextSize = 24
+    reopen.Parent = sg
+    Instance.new("UICorner", reopen).CornerRadius = UDim.new(1, 0)
+    makeDraggable(reopen)
+    reopen.MouseButton1Click:Connect(function()
+        main.Visible = true
+        reopen:Destroy()
+    end)
+end)
+
+-- Atualizar botões + status
 function atualizarBotoes()
     if ativo then
         btnLock.Text = "🔒 LOCK: ON"
@@ -599,29 +721,23 @@ function atualizarBotoes()
         btnEsp.Text = "👁️ ESP: OFF"
         btnEsp.BackgroundColor3 = CORES.botao
     end
+
+    statusLabel.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n" .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF")
+    statusLabel.TextColor3 = (ativo or espAtivo) and CORES.on or CORES.textoFraco
+
+    infoBox.Visible = ativo
+    if ativo and alvo then
+        local hp, maxHp = getVida(alvo)
+        if hp then
+            infoLabel.Text = string.format("🎯 Alvo: %s\n❤️ %d/%d", alvo.Name, math.floor(hp), math.floor(maxHp or 100))
+        else
+            infoLabel.Text = "🎯 Alvo: " .. alvo.Name
+        end
+    end
 end
 
 btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
-
--- Arrastar
-local dragging, dragStart, startPos
-topBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = main.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
 
 -- ============ TECLADO + CONTROLE ============
 local r1, r2, l1, l2 = false, false, false, false
