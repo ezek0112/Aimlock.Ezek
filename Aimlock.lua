@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock (câmera NATIVA) | 👁️ ESP | 💥 Hitbox
+--   🔒 Lock (aimbot de câmera) | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -270,7 +270,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: SÓ GIRA O CORPO (câmera nativa do Roblox)
+-- 🔥 AIMBOT DE CÂMERA (cola no alvo e segue)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -289,15 +289,22 @@ local function atualizar()
         return
     end
 
-    -- 🔥 SÓ GIRA O CORPO PRO ALVO
-    -- A câmera nativa do Roblox segue o personagem automaticamente
-    local posAlvo = parteAlvo.Position
+    -- 🔥 GIRA O CORPO PRO ALVO
     local minhaPos = root.Position
+    local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
+
+    -- 🔥 CÂMERA COLADA ATRÁS DE VOCÊ OLHANDO PRO ALVO
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
+    end
+
+    camera.CFrame = root.CFrame * CFrame.new(0, 2.5, 11)
+    camera.Focus = CFrame.new(posAlvo)
 
     atualizarHPBar()
 end
@@ -332,6 +339,10 @@ function desligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
 
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Custom
+        if hum then camera.CameraSubject = hum end
+    end)
     print("🔓 Lock OFF")
 end
 
@@ -928,6 +939,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera 100% NATIVA do Roblox")
-print("🔄 Corpo gira pro alvo → câmera acompanha")
+print("🎯 AIMBOT: câmera colada no alvo")
 print("═══════════════════════════════════════════")
