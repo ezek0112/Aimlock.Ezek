@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock (aimbot de câmera) | 👁️ ESP | 💥 Hitbox
+--   🔒 Lock | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -270,7 +270,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 AIMBOT DE CÂMERA (cola no alvo e segue)
+-- 🔥 LOOP: GIRA CORPO + CÂMERA ATRÁS DE VOCÊ
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -289,7 +289,7 @@ local function atualizar()
         return
     end
 
-    -- 🔥 GIRA O CORPO PRO ALVO
+    -- Gira o corpo pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -298,12 +298,16 @@ local function atualizar()
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 CÂMERA COLADA ATRÁS DE VOCÊ OLHANDO PRO ALVO
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
-    end
+    -- Câmera atrás de você olhando pro alvo
+    camera.CameraType = Enum.CameraType.Scriptable
 
-    camera.CFrame = root.CFrame * CFrame.new(0, 2.5, 11)
+    local flatDir = Vector3.new(dir.X, 0, dir.Z)
+    if flatDir.Magnitude < 0.01 then return end
+    flatDir = flatDir.Unit
+
+    local camPos = minhaPos - flatDir * 10 + Vector3.new(0, 3, 0)
+
+    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
     camera.Focus = CFrame.new(posAlvo)
 
     atualizarHPBar()
@@ -939,5 +943,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🎯 AIMBOT: câmera colada no alvo")
+print("📷 Câmera atrás de você olhando pro alvo")
 print("═══════════════════════════════════════════")
