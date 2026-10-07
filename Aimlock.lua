@@ -1,4 +1,4 @@
--- AIMLOCK DO EZEK v28.1 - CÂMERA SEGUE ALVO (CORRIGIDO)
+-- AIMLOCK DO EZEK v28 - CÂMERA SEGUE ALVO (MANTÉM 1ª/3ª PESSOA)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -62,22 +62,23 @@ local function estaStunado()
     return dif >= 0 and dif < STUN_DURACAO
 end
 
--- ══════════════════════════════════════════════════
--- 🔥 DETECÇÃO DE 1ª PESSOA (CORRIGIDA - SÓ QUANDO LOCK OFF)
--- ══════════════════════════════════════════════════
+-- ============ DETECTA 1ª PESSOA (CORRIGIDO) ============
 task.spawn(function()
     while task.wait(0.1) do
         pcall(function()
-            -- 🔥 Só detecta se NÃO estiver lockado (senão buga a câmera)
+            -- 🔥 Só detecta quando lock tá OFF (corrige o bug do cabelo/mirinha)
             if locked then return end
 
+            -- Método 1: CameraMode oficial
             if player.CameraMode == Enum.CameraMode.LockFirstPerson then
                 primeiraPessoaCache = true
             else
+                -- Método 2: zoom máximo
                 local maxZoom = player.CameraMaxZoomDistance or 128
                 if maxZoom <= 0.5 then
                     primeiraPessoaCache = true
                 else
+                    -- Método 3: distância da cabeça
                     local char = player.Character
                     local head = char and char:FindFirstChild("Head")
                     local cam = Workspace.CurrentCamera
@@ -377,7 +378,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK v28.1 - CÂMERA SEGUE"
+title.Text = "🎯 EZEK v28 - CÂMERA SEGUE"
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 11
@@ -874,15 +875,15 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 UPDATE CÂMERA (CORRIGIDO - DISTÂNCIA DINÂMICA)
+-- 🔥 UPDATE CÂMERA (segue alvo, mantém 1ª/3ª pessoa)
 -- ══════════════════════════════════════════════════
 local function updateCamera()
     if tick() < DEVE_RESETAR_ATE then return end
     if not locked or not target or not target.Parent then return end
-
+    
     camera = Workspace.CurrentCamera
     if not camera then return end
-
+    
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -890,17 +891,17 @@ local function updateCamera()
     local myRoot = char:FindFirstChild("HumanoidRootPart")
     local head = char:FindFirstChild("Head")
     if not myRoot or not head then return end
-
+    
     local part = getAimPart(target)
     if not part then return end
-
+    
     local alvoPos = part.Position
     if part.Name == "Head" then alvoPos = alvoPos + Vector3.new(0, -0.3, 0) end
-
+    
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
-
+    
     if primeiraPessoaCache then
         -- 1ª pessoa: câmera na cabeça olhando pro alvo
         local eyePos = head.Position + Vector3.new(0, 0.5, 0)
@@ -913,16 +914,11 @@ local function updateCamera()
         local dir = alvoPos - eyePos
         if dir.Magnitude < 0.1 then return end
         dir = dir.Unit
-        
-        -- 🔥 DISTÂNCIA DINÂMICA: não cola no alvo
-        local distReal = (alvoPos - myRoot.Position).Magnitude
-        local distFinal = math.clamp(distReal * 0.6, 5, DISTANCIA_CAMERA)
-        
-        local camPos = eyePos - dir * distFinal
+        local camPos = eyePos - dir * DISTANCIA_CAMERA
         camera.CFrame = CFrame.lookAt(camPos, alvoPos)
     end
     camera.Focus = CFrame.new(alvoPos)
-
+    
     updateInfo()
     atualizarHPBar()
 end
@@ -1344,7 +1340,7 @@ task.spawn(function()
 end)
 
 atualizarStatus()
-print("✅ AIMLOCK DO EZEK v28.1 - CÂMERA SEGUE ALVO (CORRIGIDO)!")
+print("✅ AIMLOCK DO EZEK v28 - CÂMERA SEGUE ALVO!")
 print("📷 1ª pessoa: câmera na cabeça olhando pro alvo")
 print("📷 3ª pessoa: câmera atrás do boneco olhando pro alvo")
 print("🎮 Q = Lock | E = ESP | R1+R2 = Lock | L1+L2 = ESP")
