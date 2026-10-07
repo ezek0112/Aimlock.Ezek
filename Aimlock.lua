@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock | 👁️ ESP | 📊 HP Bar | ⭕ Hitbox | 🔍 Zoom nativo
+--   🔒 Lock (câmera NATIVA) | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -16,9 +16,6 @@ local camera = workspace.CurrentCamera
 local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
-
--- 🔍 ZOOM (0 = 1ª pessoa, 20 = longe)
-local ZOOM_DIST = 0
 
 local ativo = false
 local alvo = nil
@@ -273,7 +270,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: GIRA CORPO + CÂMERA NA CABEÇA + ZOOM
+-- 🔥 LOOP: SÓ GIRA O CORPO (câmera nativa do Roblox)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -281,9 +278,8 @@ local function atualizar()
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    local head = char:FindFirstChild("Head")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not root or not head or not hum or hum.Health <= 0 then return end
+    if not root or not hum or hum.Health <= 0 then return end
 
     local parteAlvo = pegarPeito(alvo)
     if not parteAlvo then return end
@@ -293,29 +289,15 @@ local function atualizar()
         return
     end
 
-    -- 🔥 Gira o corpo pro alvo
+    -- 🔥 SÓ GIRA O CORPO PRO ALVO
+    -- A câmera nativa do Roblox segue o personagem automaticamente
     local posAlvo = parteAlvo.Position
     local minhaPos = root.Position
-    local dirCorpo = posAlvo - minhaPos
-    local flat = Vector3.new(dirCorpo.X, 0, dirCorpo.Z)
+    local dir = posAlvo - minhaPos
+    local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
-
-    -- 🔥 CÂMERA NA CABEÇA MIRANDO NO PEITO + ZOOM
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
-    end
-
-    local eyePos = head.Position + Vector3.new(0, 0.5, 0)
-    local olharPos = parteAlvo.Position
-    local dir = (olharPos - eyePos).Unit
-
-    -- 🔍 Aplica o zoom
-    local camPos = eyePos - dir * ZOOM_DIST
-
-    camera.CFrame = CFrame.lookAt(camPos, olharPos)
-    camera.Focus = CFrame.new(olharPos)
 
     atualizarHPBar()
 end
@@ -350,10 +332,6 @@ function desligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
 
-    pcall(function()
-        camera.CameraType = Enum.CameraType.Custom
-        if hum then camera.CameraSubject = hum end
-    end)
     print("🔓 Lock OFF")
 end
 
@@ -493,45 +471,6 @@ function toggleESP()
     end
     atualizarBotoes()
 end
-
--- ══════════════════════════════════════════════════
--- 🔥 CÂMERA VOLTA PRO SEU BONECO QUANDO LOCK TÁ OFF
--- ══════════════════════════════════════════════════
-task.spawn(function()
-    while task.wait(0.1) do
-        if not ativo then
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and camera.CameraSubject ~= hum then
-                pcall(function()
-                    camera.CameraType = Enum.CameraType.Custom
-                    camera.CameraSubject = hum
-                end)
-            end
-        end
-    end
-end)
-
--- ══════════════════════════════════════════════════
--- 🔍 ZOOM NATIVO (scroll mouse + pinça touch)
--- ══════════════════════════════════════════════════
-UserInputService.InputChanged:Connect(function(input, gp)
-    if gp then return end
-
-    -- 🖱️ Scroll do mouse (PC)
-    if input.UserInputType == Enum.UserInputType.MouseWheel then
-        ZOOM_DIST = math.clamp(ZOOM_DIST - input.Position.Z * 2, 0, 20)
-    end
-
-    -- 📱 Pinça touch (celular) — detecta zoom via toque
-    if input.UserInputType == Enum.UserInputType.Touch 
-       and input.UserInputState == Enum.UserInputState.Change then
-        -- Delta pequeno = movimento normal, delta grande = pinça
-        if math.abs(input.Delta.Y) > 0 and math.abs(input.Delta.Y) < 30 then
-            ZOOM_DIST = math.clamp(ZOOM_DIST + input.Delta.Y * 0.1, 0, 20)
-        end
-    end
-end)
 
 -- ============ GUI ============
 local CORES = {
@@ -914,7 +853,7 @@ function atualizarBotoes()
     if ativo and alvo then
         local hp, maxHp = getVida(alvo)
         if hp then
-            infoLabel.Text = string.format("🎯 Alvo: %s\n❤️ %d/%d\n🔍 Zoom: %d", alvo.Name, math.floor(hp), math.floor(maxHp or 100), math.floor(ZOOM_DIST))
+            infoLabel.Text = string.format("🎯 Alvo: %s\n❤️ %d/%d", alvo.Name, math.floor(hp), math.floor(maxHp or 100))
         else
             infoLabel.Text = "🎯 Alvo: " .. alvo.Name
         end
@@ -989,6 +928,6 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🎯 Câmera: na cabeça mirando no peito")
-print("🔍 Zoom: scroll do mouse / pinça no touch")
+print("📷 Câmera 100% NATIVA do Roblox")
+print("🔄 Corpo gira pro alvo → câmera acompanha")
 print("═══════════════════════════════════════════")
