@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock (câmera estilo DBK) | 👁️ ESP | 💥 Hitbox
+--   🔒 Lock | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -17,18 +17,8 @@ local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
 
--- 🔥 Config da câmera (estilo DBK)
 local CAM_HEIGHT = 3.7
 local DISTANCIA_DA_CAMERA = 13.2
-local LERP_CAM_NEAR = 0.55
-local LERP_CAM_FAR = 0.32
-local LERP_BODY = 0.52
-local MAX_DIST_CAM = 800
-
--- 🔥 Predição
-local VELOCIDADE_BALA = 2600
-local PRED_MULT = 1.07
-local MIN_VEL = 4
 
 local cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
 local cameraSalva = false
@@ -287,7 +277,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: CÂMERA ESTILO DBK (atrás + mira no centro)
+-- 🔥 LOOP: CÂMERA + MIRA NO CENTRO DO ALVO
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -306,7 +296,7 @@ local function atualizar()
         return
     end
 
-    -- 🔥 SALVA ESTADO ORIGINAL DA CÂMERA
+    -- SALVA CÂMERA
     if not cameraSalva then
         pcall(function()
             cameraOriginal.CameraType = camera.CameraType
@@ -317,21 +307,10 @@ local function atualizar()
         cameraSalva = true
     end
 
-    -- 🔥 MIRA NO ALVO com predição
-    local aimPos = parteAlvo.Position
-    local velAlvo = Vector3.new()
-    local rootAlvo = alvo:FindFirstChild("HumanoidRootPart")
-    if rootAlvo then
-        velAlvo = rootAlvo.AssemblyLinearVelocity or Vector3.new()
-    end
+    -- 🔥 MIRA UM POUCO ABAIXO DO PEITO (alvo sobe na tela)
+    local aimPos = parteAlvo.Position + Vector3.new(0, -3, 0)
 
-    if velAlvo.Magnitude >= MIN_VEL then
-        local distAte = (aimPos - camera.CFrame.Position).Magnitude
-        local tempoAte = (distAte / VELOCIDADE_BALA) * PRED_MULT
-        aimPos = aimPos + velAlvo * tempoAte
-    end
-
-    -- 🔥 CÂMERA ATRÁS DE VOCÊ OLHANDO PRO ALVO (com Lerp)
+    -- CÂMERA ATRÁS DE VOCÊ OLHANDO PRO ALVO
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
@@ -340,15 +319,12 @@ local function atualizar()
     local dirCam = (aimPos - eyePos).Unit
     local camPos = eyePos - dirCam * DISTANCIA_DA_CAMERA
 
-    local distCam = (aimPos - eyePos).Magnitude
-    local lerpAmt = LERP_CAM_NEAR - (distCam / MAX_DIST_CAM) * (LERP_CAM_NEAR - LERP_CAM_FAR)
-
-    camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(camPos, aimPos), lerpAmt)
+    camera.CFrame = CFrame.lookAt(camPos, aimPos)
     camera.Focus = CFrame.new(aimPos)
 
-    -- 🔥 GIRA O CORPO PRO ALVO (com Lerp)
+    -- GIRA O CORPO PRO ALVO
     local flatAim = Vector3.new(aimPos.X, root.Position.Y, aimPos.Z)
-    root.CFrame = root.CFrame:Lerp(CFrame.new(root.Position, flatAim), LERP_BODY)
+    root.CFrame = CFrame.new(root.Position, flatAim)
 
     atualizarHPBar()
 end
@@ -383,7 +359,6 @@ function desligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
 
-    -- 🔥 RESTAURA ESTADO ORIGINAL
     if cameraSalva then
         pcall(function()
             camera.CameraType = cameraOriginal.CameraType or Enum.CameraType.Custom
@@ -1005,5 +980,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera estilo DBK (atrás + mira no centro)")
+print("📷 Câmera: atrás de você mirando abaixo do peito")
 print("═══════════════════════════════════════════")
