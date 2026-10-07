@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP + HITBOX - v1 REWORK
---   🔒 Lock | 👁️ ESP | 📊 HP Bar | 💥 Hitbox Expander
+--   EZEK LOCK + ESP + HITBOX - v2 REWORK
+--   🔒 Lock | 👁️ ESP | 📊 HP Bar | 💥 Hitbox em você
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -8,12 +8,15 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v1 REWORK"
+local VERSAO = "v2 REWORK"
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-local DIST_CAM = 12
-local HITBOX_MULT = 3.5  -- 🔥 Multiplicador do hitbox (3.5 = 3.5x maior)
+
+-- 🔥 HITBOX (na SUA pessoa)
+local HITBOX_MULT = 3.5
+local HITBOX_COR = Color3.fromRGB(0, 150, 255)
+local HITBOX_TRANSP = 0.7
 
 local ativo = false
 local alvo = nil
@@ -23,11 +26,8 @@ local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
 
--- 🔥 Hitbox salva
 local hitboxSalvos = {}
-local hitboxModelo = nil
 
--- 🔥 FILTROS DO ESP
 local filtros = { players = true, dummies = true, monstros = true }
 
 -- ============ DETECÇÃO DE VIDA ============
@@ -130,41 +130,48 @@ local function acharAlvo()
     return melhor
 end
 
--- ============ HITBOX EXPANDER ============
+-- ══════════════════════════════════════════════════
+-- 🔥 HITBOX NA SUA PESSOA (você fica azul)
+-- ══════════════════════════════════════════════════
 local function restaurarHitbox()
     for part, dados in pairs(hitboxSalvos) do
         if part and part.Parent then
             pcall(function()
                 part.Size = dados.size
                 part.CanCollide = dados.collide
+                part.Color = dados.color
+                part.Transparency = dados.transparency
+                part.Material = dados.material
             end)
         end
     end
     hitboxSalvos = {}
-    hitboxModelo = nil
 end
 
-local function aplicarHitbox(m)
-    if not m or not m.Parent then return end
+local function aplicarHitboxPropria()
+    local char = player.Character
+    if not char then return end
     restaurarHitbox()
-    hitboxModelo = m
 
-    for _, part in ipairs(m:GetDescendants()) do
-        if part:IsA("BasePart") then
-            -- Pula acessórios (chamados "Handle")
-            if part.Name ~= "Handle" then
-                hitboxSalvos[part] = {
-                    size = part.Size,
-                    collide = part.CanCollide
-                }
-                pcall(function()
-                    part.Size = part.Size * HITBOX_MULT
-                    part.CanCollide = false
-                end)
-            end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "Handle" then
+            hitboxSalvos[part] = {
+                size = part.Size,
+                collide = part.CanCollide,
+                color = part.Color,
+                transparency = part.Transparency,
+                material = part.Material,
+            }
+            pcall(function()
+                part.Size = part.Size * HITBOX_MULT
+                part.CanCollide = false
+                part.Color = HITBOX_COR
+                part.Transparency = HITBOX_TRANSP
+                part.Material = Enum.Material.ForceField
+            end)
         end
     end
-    print("💥 Hitbox aplicado em: " .. m.Name)
+    print(string.format("💥 Hitbox EM VOCÊ (%.1fx)", HITBOX_MULT))
 end
 
 -- ============ HP BAR DO ALVO ============
@@ -252,7 +259,9 @@ local function atualizarHPBar()
     end
 end
 
--- ============ LOOP: LOCK ZERO DELAY ============
+-- ══════════════════════════════════════════════════
+-- 🔥 LOOP: GIRA CORPO + CÂMERA SEGUE (NATURAL)
+-- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
 
@@ -273,27 +282,21 @@ local function atualizar()
     local posAlvo = parteAlvo.Position
     local minhaPos = root.Position
 
+    -- 🔥 SÓ GIRA O CORPO PRO ALVO
     local dir = posAlvo - minhaPos
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
 
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
+    -- 🔥 CÂMERA SEGUE O ALVO NATURALMENTE (zoom livre)
+    local humAlvo = alvo:FindFirstChildOfClass("Humanoid")
+    if humAlvo and camera.CameraSubject ~= humAlvo then
+        pcall(function()
+            camera.CameraType = Enum.CameraType.Custom
+            camera.CameraSubject = humAlvo
+        end)
     end
-
-    local camAlvo = Vector3.new(posAlvo.X, minhaPos.Y + 2.5, posAlvo.Z)
-
-    local dirCam = camAlvo - minhaPos
-    local flatCam = Vector3.new(dirCam.X, 0, dirCam.Z)
-    if flatCam.Magnitude < 0.01 then return end
-    flatCam = flatCam.Unit
-
-    local camPos = minhaPos - flatCam * DIST_CAM + Vector3.new(0, 4, 0)
-
-    camera.CFrame = CFrame.lookAt(camPos, camAlvo)
-    camera.Focus = CFrame.new(camAlvo)
 
     atualizarHPBar()
 end
@@ -307,11 +310,6 @@ function ligarLock()
     ativo = true
 
     criarHPBar(t)
-
-    -- 🔥 Aplica hitbox se estiver ativo
-    if hitboxAtivo then
-        aplicarHitbox(t)
-    end
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
@@ -329,9 +327,6 @@ function desligarLock()
     RunService:UnbindFromRenderStep("EZEK_LOCK")
 
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
-
-    -- 🔥 Remove hitbox
-    restaurarHitbox()
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
@@ -352,15 +347,19 @@ end
 function toggleHitbox()
     hitboxAtivo = not hitboxAtivo
     if hitboxAtivo then
-        if ativo and alvo then
-            aplicarHitbox(alvo)
-        end
-        print("💥 Hitbox ON")
+        aplicarHitboxPropria()
+        print("💥 Hitbox EM VOCÊ ON")
     else
         restaurarHitbox()
-        print("💥 Hitbox OFF")
+        print("💥 Hitbox EM VOCÊ OFF")
     end
     atualizarBotoes()
+end
+
+function reaplicarHitbox()
+    if hitboxAtivo then
+        aplicarHitboxPropria()
+    end
 end
 
 -- ============ ESP ============
@@ -483,6 +482,8 @@ local CORES = {
     off = Color3.fromRGB(180,50,50), texto = Color3.fromRGB(240,240,240),
     textoFraco = Color3.fromRGB(160,160,170), borda = Color3.fromRGB(90,90,120),
     checkOn = Color3.fromRGB(0,170,90), checkOff = Color3.fromRGB(60,60,75),
+    sliderBg = Color3.fromRGB(40,40,55), sliderFill = Color3.fromRGB(0,150,255),
+    sliderKnob = Color3.fromRGB(220,220,230),
 }
 
 local sg = Instance.new("ScreenGui")
@@ -491,13 +492,13 @@ sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.Parent = player:WaitForChild("PlayerGui")
 
-local tamW, tamH = 240, 470
+local tamW, tamH = 240, 560
 local tamanhoNormal = UDim2.new(0, tamW, 0, tamH)
 local tamanhoMin = UDim2.new(0, tamW, 0, 40)
 
 local main = Instance.new("Frame")
 main.Size = tamanhoNormal
-main.Position = UDim2.new(0, 20, 0, 80)
+main.Position = UDim2.new(0, 20, 0, 60)
 main.BackgroundColor3 = CORES.fundo
 main.BorderSizePixel = 0
 main.Active = true
@@ -550,11 +551,11 @@ scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 6
 scroll.ScrollBarImageColor3 = CORES.borda
-scroll.CanvasSize = UDim2.new(0, 0, 0, 420)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 540)
 scroll.Parent = main
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -10, 0, 420)
+content.Size = UDim2.new(1, -10, 0, 540)
 content.BackgroundTransparency = 1
 content.Parent = scroll
 
@@ -591,11 +592,99 @@ end
 
 local btnLock = criarBotao("🔓 LOCK: OFF", 84)
 local btnEsp = criarBotao("👁️ ESP: OFF", 128)
-local btnHitbox = criarBotao("💥 HITBOX: OFF", 172)
+local btnHitbox = criarBotao("💥 HITBOX (EU): OFF", 172)
 
+-- 🔥 SLIDER DO HITBOX
+local sliderFrame = Instance.new("Frame")
+sliderFrame.Size = UDim2.new(1, 0, 0, 70)
+sliderFrame.Position = UDim2.new(0, 0, 0, 216)
+sliderFrame.BackgroundColor3 = CORES.topo
+sliderFrame.BorderSizePixel = 0
+sliderFrame.Parent = content
+Instance.new("UICorner", sliderFrame).CornerRadius = UDim.new(0, 8)
+
+local sTitulo = Instance.new("TextLabel")
+sTitulo.Size = UDim2.new(1, -16, 0, 16)
+sTitulo.Position = UDim2.new(0, 8, 0, 4)
+sTitulo.BackgroundTransparency = 1
+sTitulo.Text = "💥 Tamanho do Hitbox: " .. string.format("%.1fx", HITBOX_MULT)
+sTitulo.TextColor3 = CORES.texto
+sTitulo.Font = Enum.Font.GothamBold
+sTitulo.TextSize = 12
+sTitulo.TextXAlignment = Enum.TextXAlignment.Left
+sTitulo.Parent = sliderFrame
+
+local trilha = Instance.new("Frame")
+trilha.Size = UDim2.new(1, -16, 0, 12)
+trilha.Position = UDim2.new(0, 8, 0, 32)
+trilha.BackgroundColor3 = CORES.sliderBg
+trilha.BorderSizePixel = 0
+trilha.Parent = sliderFrame
+Instance.new("UICorner", trilha).CornerRadius = UDim.new(1, 0)
+
+local SLIDER_MIN = 1
+local SLIDER_MAX = 10
+
+local fillSlider = Instance.new("Frame")
+fillSlider.Size = UDim2.new((HITBOX_MULT - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1, 0)
+fillSlider.BackgroundColor3 = CORES.sliderFill
+fillSlider.BorderSizePixel = 0
+fillSlider.Parent = trilha
+Instance.new("UICorner", fillSlider).CornerRadius = UDim.new(1, 0)
+
+local knob = Instance.new("Frame")
+knob.Size = UDim2.new(0, 18, 0, 18)
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new((HITBOX_MULT - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 0.5, 0)
+knob.BackgroundColor3 = CORES.sliderKnob
+knob.BorderSizePixel = 0
+knob.ZIndex = 2
+knob.Parent = trilha
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+local hitArea = Instance.new("TextButton")
+hitArea.Size = UDim2.new(1, 0, 0, 26)
+hitArea.Position = UDim2.new(0, 8, 0, 26)
+hitArea.BackgroundTransparency = 1
+hitArea.Text = ""
+hitArea.ZIndex = 3
+hitArea.Parent = sliderFrame
+
+local arrastando = false
+
+local function processarSlider(input)
+    local w = trilha.AbsoluteSize.X
+    if w <= 0 then return end
+    local pct = math.clamp((input.Position.X - trilha.AbsolutePosition.X) / w, 0, 1)
+    local v = SLIDER_MIN + (SLIDER_MAX - SLIDER_MIN) * pct
+    HITBOX_MULT = math.floor(v * 10) / 10
+    fillSlider.Size = UDim2.new(pct, 0, 1, 0)
+    knob.Position = UDim2.new(pct, 0, 0.5, 0)
+    sTitulo.Text = "💥 Tamanho do Hitbox: " .. string.format("%.1fx", HITBOX_MULT)
+    reaplicarHitbox()
+end
+
+hitArea.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        arrastando = true
+        processarSlider(input)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if arrastando and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        processarSlider(input)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        arrastando = false
+    end
+end)
+
+-- FILTROS
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
-filtroFrame.Position = UDim2.new(0, 0, 0, 216)
+filtroFrame.Position = UDim2.new(0, 0, 0, 294)
 filtroFrame.BackgroundColor3 = CORES.topo
 filtroFrame.BorderSizePixel = 0
 filtroFrame.Parent = content
@@ -669,7 +758,7 @@ criarCheck("👹 Monstros", "monstros", 86)
 
 local infoBox = Instance.new("Frame")
 infoBox.Size = UDim2.new(1, 0, 0, 55)
-infoBox.Position = UDim2.new(0, 0, 0, 336)
+infoBox.Position = UDim2.new(0, 0, 0, 414)
 infoBox.BackgroundColor3 = CORES.topo
 infoBox.BorderSizePixel = 0
 infoBox.Visible = false
@@ -753,10 +842,10 @@ function atualizarBotoes()
         btnEsp.BackgroundColor3 = CORES.botao
     end
     if hitboxAtivo then
-        btnHitbox.Text = "💥 HITBOX: ON"
+        btnHitbox.Text = "💥 HITBOX (EU): ON"
         btnHitbox.BackgroundColor3 = CORES.on
     else
-        btnHitbox.Text = "💥 HITBOX: OFF"
+        btnHitbox.Text = "💥 HITBOX (EU): OFF"
         btnHitbox.BackgroundColor3 = CORES.botao
     end
 
@@ -825,6 +914,13 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ============ RESPAWN ============
+player.CharacterAdded:Connect(function(newChar)
+    task.wait(0.5)
+    if hitboxAtivo then
+        aplicarHitboxPropria()
+    end
+end)
+
 player.CharacterRemoving:Connect(function()
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
@@ -835,6 +931,8 @@ atualizarBotoes()
 print("═══════════════════════════════════════════")
 print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
 print("═══════════════════════════════════════════")
-print("🎮 Q = Lock | E = ESP | T = Hitbox")
+print("🎮 Q = Lock | E = ESP | T = Hitbox (em você)")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("💥 Hitbox em VOCÊ: você fica azul")
+print("📷 Câmera: segue o alvo com zoom livre")
 print("═══════════════════════════════════════════")
