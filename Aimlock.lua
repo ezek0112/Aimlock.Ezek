@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
---   🔒 Lock | 👁️ ESP | 📊 HP Bar | ⭕ Círculo de hitbox
+--   🔒 Lock | 👁️ ESP | 📊 HP Bar | ⭕ Hitbox | 🔍 Zoom nativo
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -13,10 +13,12 @@ local VERSAO = "v2 REWORK"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- 🔥 HITBOX VISUAL (círculo em volta)
 local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
+
+-- 🔍 ZOOM (0 = 1ª pessoa, 20 = longe)
+local ZOOM_DIST = 0
 
 local ativo = false
 local alvo = nil
@@ -94,6 +96,12 @@ local function pegarParte(m)
         or m:FindFirstChild("Root") or m.PrimaryPart
 end
 
+local function pegarPeito(m)
+    if not m then return nil end
+    return m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
+        or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Root") or m.PrimaryPart
+end
+
 local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -130,7 +138,7 @@ local function acharAlvo()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 HITBOX VISUAL (círculo azul em volta de você)
+-- 🔥 HITBOX VISUAL
 -- ══════════════════════════════════════════════════
 local function criarHitboxVisual()
     local char = player.Character
@@ -163,9 +171,7 @@ local function criarHitboxVisual()
     weld.Parent = esfera
 
     esfera.CFrame = root.CFrame
-
     hitboxVisual = esfera
-    print(string.format("💥 Círculo de hitbox criado (%.1fx)", HITBOX_MULT))
 end
 
 local function removerHitboxVisual()
@@ -181,7 +187,7 @@ local function atualizarHitboxVisual()
     hitboxVisual.Size = Vector3.new(novoSize, novoSize, novoSize)
 end
 
--- ============ HP BAR DO ALVO ============
+-- ============ HP BAR ============
 local function criarHPBar(m)
     if hpBarAlvo and hpBarAlvo.Parent then hpBarAlvo:Destroy() end
     if not m or not m.Parent then return end
@@ -267,7 +273,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: GIRA CORPO + CÂMERA SEGUE (zoom livre)
+-- 🔥 LOOP: GIRA CORPO + CÂMERA NA CABEÇA + ZOOM
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -275,10 +281,11 @@ local function atualizar()
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum or hum.Health <= 0 then return end
+    if not root or not head or not hum or hum.Health <= 0 then return end
 
-    local parteAlvo = pegarParte(alvo)
+    local parteAlvo = pegarPeito(alvo)
     if not parteAlvo then return end
 
     if not temVida(alvo) then
@@ -286,22 +293,29 @@ local function atualizar()
         return
     end
 
+    -- 🔥 Gira o corpo pro alvo
     local posAlvo = parteAlvo.Position
     local minhaPos = root.Position
-
-    local dir = posAlvo - minhaPos
-    local flat = Vector3.new(dir.X, 0, dir.Z)
+    local dirCorpo = posAlvo - minhaPos
+    local flat = Vector3.new(dirCorpo.X, 0, dirCorpo.Z)
     if flat.Magnitude > 0.01 then
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
 
-    local humAlvo = alvo:FindFirstChildOfClass("Humanoid")
-    if humAlvo and camera.CameraSubject ~= humAlvo then
-        pcall(function()
-            camera.CameraType = Enum.CameraType.Custom
-            camera.CameraSubject = humAlvo
-        end)
+    -- 🔥 CÂMERA NA CABEÇA MIRANDO NO PEITO + ZOOM
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
     end
+
+    local eyePos = head.Position + Vector3.new(0, 0.5, 0)
+    local olharPos = parteAlvo.Position
+    local dir = (olharPos - eyePos).Unit
+
+    -- 🔍 Aplica o zoom
+    local camPos = eyePos - dir * ZOOM_DIST
+
+    camera.CFrame = CFrame.lookAt(camPos, olharPos)
+    camera.Focus = CFrame.new(olharPos)
 
     atualizarHPBar()
 end
@@ -481,23 +495,40 @@ function toggleESP()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 FORÇA CÂMERA VOLTAR PRO SEU BONECO (quando lock OFF)
+-- 🔥 CÂMERA VOLTA PRO SEU BONECO QUANDO LOCK TÁ OFF
 -- ══════════════════════════════════════════════════
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.1) do
         if not ativo then
             local char = player.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
+            if hum and camera.CameraSubject ~= hum then
                 pcall(function()
-                    if camera.CameraType ~= Enum.CameraType.Custom then
-                        camera.CameraType = Enum.CameraType.Custom
-                    end
-                    if camera.CameraSubject ~= hum then
-                        camera.CameraSubject = hum
-                    end
+                    camera.CameraType = Enum.CameraType.Custom
+                    camera.CameraSubject = hum
                 end)
             end
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔍 ZOOM NATIVO (scroll mouse + pinça touch)
+-- ══════════════════════════════════════════════════
+UserInputService.InputChanged:Connect(function(input, gp)
+    if gp then return end
+
+    -- 🖱️ Scroll do mouse (PC)
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        ZOOM_DIST = math.clamp(ZOOM_DIST - input.Position.Z * 2, 0, 20)
+    end
+
+    -- 📱 Pinça touch (celular) — detecta zoom via toque
+    if input.UserInputType == Enum.UserInputType.Touch 
+       and input.UserInputState == Enum.UserInputState.Change then
+        -- Delta pequeno = movimento normal, delta grande = pinça
+        if math.abs(input.Delta.Y) > 0 and math.abs(input.Delta.Y) < 30 then
+            ZOOM_DIST = math.clamp(ZOOM_DIST + input.Delta.Y * 0.1, 0, 20)
         end
     end
 end)
@@ -621,7 +652,6 @@ local btnLock = criarBotao("🔓 LOCK: OFF", 84)
 local btnEsp = criarBotao("👁️ ESP: OFF", 128)
 local btnHitbox = criarBotao("💥 HITBOX VISUAL: OFF", 172)
 
--- 🔥 SLIDER DO HITBOX
 local sliderFrame = Instance.new("Frame")
 sliderFrame.Size = UDim2.new(1, 0, 0, 70)
 sliderFrame.Position = UDim2.new(0, 0, 0, 216)
@@ -708,7 +738,6 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- FILTROS
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
 filtroFrame.Position = UDim2.new(0, 0, 0, 294)
@@ -885,7 +914,7 @@ function atualizarBotoes()
     if ativo and alvo then
         local hp, maxHp = getVida(alvo)
         if hp then
-            infoLabel.Text = string.format("🎯 Alvo: %s\n❤️ %d/%d", alvo.Name, math.floor(hp), math.floor(maxHp or 100))
+            infoLabel.Text = string.format("🎯 Alvo: %s\n❤️ %d/%d\n🔍 Zoom: %d", alvo.Name, math.floor(hp), math.floor(maxHp or 100), math.floor(ZOOM_DIST))
         else
             infoLabel.Text = "🎯 Alvo: " .. alvo.Name
         end
@@ -960,6 +989,6 @@ print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("⭕ Círculo azul = tamanho da hitbox em você")
-print("📷 Câmera volta pro boneco quando lock tá OFF")
+print("🎯 Câmera: na cabeça mirando no peito")
+print("🔍 Zoom: scroll do mouse / pinça no touch")
 print("═══════════════════════════════════════════")
