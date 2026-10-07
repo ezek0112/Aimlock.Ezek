@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP + HITBOX - v2 REWORK
---   🔒 Lock | 👁️ ESP | 📊 HP Bar | 💥 Hitbox em você
+--   EZEK LOCK + ESP + HITBOX VISUAL - v2 REWORK
+--   🔒 Lock | 👁️ ESP | 📊 HP Bar | ⭕ Círculo de hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -13,7 +13,7 @@ local VERSAO = "v2 REWORK"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- 🔥 HITBOX (na SUA pessoa)
+-- 🔥 HITBOX VISUAL (círculo em volta)
 local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
@@ -25,8 +25,7 @@ local hitboxAtivo = false
 local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
-
-local hitboxSalvos = {}
+local hitboxVisual = nil
 
 local filtros = { players = true, dummies = true, monstros = true }
 
@@ -131,47 +130,55 @@ local function acharAlvo()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 HITBOX NA SUA PESSOA (você fica azul)
+-- 🔥 HITBOX VISUAL (círculo azul em volta de você)
 -- ══════════════════════════════════════════════════
-local function restaurarHitbox()
-    for part, dados in pairs(hitboxSalvos) do
-        if part and part.Parent then
-            pcall(function()
-                part.Size = dados.size
-                part.CanCollide = dados.collide
-                part.Color = dados.color
-                part.Transparency = dados.transparency
-                part.Material = dados.material
-            end)
-        end
-    end
-    hitboxSalvos = {}
-end
-
-local function aplicarHitboxPropria()
+local function criarHitboxVisual()
     local char = player.Character
     if not char then return end
-    restaurarHitbox()
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "Handle" then
-            hitboxSalvos[part] = {
-                size = part.Size,
-                collide = part.CanCollide,
-                color = part.Color,
-                transparency = part.Transparency,
-                material = part.Material,
-            }
-            pcall(function()
-                part.Size = part.Size * HITBOX_MULT
-                part.CanCollide = false
-                part.Color = HITBOX_COR
-                part.Transparency = HITBOX_TRANSP
-                part.Material = Enum.Material.ForceField
-            end)
-        end
+    if hitboxVisual and hitboxVisual.Parent then
+        hitboxVisual:Destroy()
     end
-    print(string.format("💥 Hitbox EM VOCÊ (%.1fx)", HITBOX_MULT))
+
+    local esfera = Instance.new("Part")
+    esfera.Name = "EZEK_HitboxVisual"
+    esfera.Shape = Enum.PartType.Ball
+    esfera.Size = Vector3.new(HITBOX_MULT * 2, HITBOX_MULT * 2, HITBOX_MULT * 2)
+    esfera.Material = Enum.Material.ForceField
+    esfera.Color = HITBOX_COR
+    esfera.Transparency = HITBOX_TRANSP
+    esfera.CanCollide = false
+    esfera.CanTouch = false
+    esfera.CanQuery = false
+    esfera.Anchored = false
+    esfera.Massless = true
+    esfera.CastShadow = false
+    esfera.Parent = workspace
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = esfera
+    weld.Part1 = root
+    weld.Parent = esfera
+
+    esfera.CFrame = root.CFrame
+
+    hitboxVisual = esfera
+    print(string.format("💥 Círculo de hitbox criado (%.1fx)", HITBOX_MULT))
+end
+
+local function removerHitboxVisual()
+    if hitboxVisual and hitboxVisual.Parent then
+        hitboxVisual:Destroy()
+    end
+    hitboxVisual = nil
+end
+
+local function atualizarHitboxVisual()
+    if not hitboxVisual or not hitboxVisual.Parent then return end
+    local novoSize = HITBOX_MULT * 2
+    hitboxVisual.Size = Vector3.new(novoSize, novoSize, novoSize)
 end
 
 -- ============ HP BAR DO ALVO ============
@@ -260,7 +267,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: GIRA CORPO + CÂMERA SEGUE (NATURAL)
+-- 🔥 LOOP: GIRA CORPO + CÂMERA SEGUE (zoom livre)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -282,14 +289,12 @@ local function atualizar()
     local posAlvo = parteAlvo.Position
     local minhaPos = root.Position
 
-    -- 🔥 SÓ GIRA O CORPO PRO ALVO
     local dir = posAlvo - minhaPos
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then
         root.CFrame = CFrame.lookAt(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 CÂMERA SEGUE O ALVO NATURALMENTE (zoom livre)
     local humAlvo = alvo:FindFirstChildOfClass("Humanoid")
     if humAlvo and camera.CameraSubject ~= humAlvo then
         pcall(function()
@@ -347,18 +352,18 @@ end
 function toggleHitbox()
     hitboxAtivo = not hitboxAtivo
     if hitboxAtivo then
-        aplicarHitboxPropria()
-        print("💥 Hitbox EM VOCÊ ON")
+        criarHitboxVisual()
+        print("💥 Círculo da hitbox ON")
     else
-        restaurarHitbox()
-        print("💥 Hitbox EM VOCÊ OFF")
+        removerHitboxVisual()
+        print("💥 Círculo da hitbox OFF")
     end
     atualizarBotoes()
 end
 
 function reaplicarHitbox()
     if hitboxAtivo then
-        aplicarHitboxPropria()
+        atualizarHitboxVisual()
     end
 end
 
@@ -592,7 +597,7 @@ end
 
 local btnLock = criarBotao("🔓 LOCK: OFF", 84)
 local btnEsp = criarBotao("👁️ ESP: OFF", 128)
-local btnHitbox = criarBotao("💥 HITBOX (EU): OFF", 172)
+local btnHitbox = criarBotao("💥 HITBOX VISUAL: OFF", 172)
 
 -- 🔥 SLIDER DO HITBOX
 local sliderFrame = Instance.new("Frame")
@@ -607,7 +612,7 @@ local sTitulo = Instance.new("TextLabel")
 sTitulo.Size = UDim2.new(1, -16, 0, 16)
 sTitulo.Position = UDim2.new(0, 8, 0, 4)
 sTitulo.BackgroundTransparency = 1
-sTitulo.Text = "💥 Tamanho do Hitbox: " .. string.format("%.1fx", HITBOX_MULT)
+sTitulo.Text = "💥 Tamanho do Círculo: " .. string.format("%.1fx", HITBOX_MULT)
 sTitulo.TextColor3 = CORES.texto
 sTitulo.Font = Enum.Font.GothamBold
 sTitulo.TextSize = 12
@@ -623,7 +628,7 @@ trilha.Parent = sliderFrame
 Instance.new("UICorner", trilha).CornerRadius = UDim.new(1, 0)
 
 local SLIDER_MIN = 1
-local SLIDER_MAX = 10
+local SLIDER_MAX = 30
 
 local fillSlider = Instance.new("Frame")
 fillSlider.Size = UDim2.new((HITBOX_MULT - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1, 0)
@@ -660,7 +665,7 @@ local function processarSlider(input)
     HITBOX_MULT = math.floor(v * 10) / 10
     fillSlider.Size = UDim2.new(pct, 0, 1, 0)
     knob.Position = UDim2.new(pct, 0, 0.5, 0)
-    sTitulo.Text = "💥 Tamanho do Hitbox: " .. string.format("%.1fx", HITBOX_MULT)
+    sTitulo.Text = "💥 Tamanho do Círculo: " .. string.format("%.1fx", HITBOX_MULT)
     reaplicarHitbox()
 end
 
@@ -842,10 +847,10 @@ function atualizarBotoes()
         btnEsp.BackgroundColor3 = CORES.botao
     end
     if hitboxAtivo then
-        btnHitbox.Text = "💥 HITBOX (EU): ON"
+        btnHitbox.Text = "💥 HITBOX VISUAL: ON"
         btnHitbox.BackgroundColor3 = CORES.on
     else
-        btnHitbox.Text = "💥 HITBOX (EU): OFF"
+        btnHitbox.Text = "💥 HITBOX VISUAL: OFF"
         btnHitbox.BackgroundColor3 = CORES.botao
     end
 
@@ -917,22 +922,22 @@ end)
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if hitboxAtivo then
-        aplicarHitboxPropria()
+        criarHitboxVisual()
     end
 end)
 
 player.CharacterRemoving:Connect(function()
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
-    restaurarHitbox()
+    removerHitboxVisual()
 end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP + HITBOX VISUAL - " .. VERSAO)
 print("═══════════════════════════════════════════")
-print("🎮 Q = Lock | E = ESP | T = Hitbox (em você)")
+print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("💥 Hitbox em VOCÊ: você fica azul")
+print("⭕ Círculo azul = tamanho da hitbox em você")
 print("📷 Câmera: segue o alvo com zoom livre")
 print("═══════════════════════════════════════════")
