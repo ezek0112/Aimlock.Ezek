@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX - v3 REWORK
---   🔒 Lock | 👁️ ESP Leve | 💥 Hitbox
+--   🔒 Lock (qualquer coisa com vida) | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -87,21 +87,29 @@ local function getTipo(m)
     return "monstros"
 end
 
+-- 🔥 pegarParte MELHORADA (aceita BasePart direto)
 local function pegarParte(m)
     if not m then return nil end
+    if m:IsA("BasePart") then return m end
     return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart")
         or m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
         or m:FindFirstChild("Root") or m.PrimaryPart
+        or m:FindFirstChildWhichIsA("BasePart")
 end
 
+-- 🔥 pegarPeito MELHORADA
 local function pegarPeito(m)
     if not m then return nil end
+    if m:IsA("BasePart") then return m end
     return m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
-        or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Root") or m.PrimaryPart
+        or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Root")
+        or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
+-- 🔥 getTodos BUSCA TUDO COM VIDA (5 níveis + BasePart)
 local function getTodos()
     local lista, vistos = {}, {}
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and temVida(p.Character) then
             if not vistos[p.Character] then
@@ -110,12 +118,23 @@ local function getTodos()
             end
         end
     end
-    for _, m in ipairs(workspace:GetChildren()) do
-        if m:IsA("Model") and not vistos[m] and temVida(m) and pegarParte(m) then
-            table.insert(lista, m)
-            vistos[m] = true
+
+    local function procurar(pasta, prof)
+        if prof > 5 then return end
+        for _, obj in ipairs(pasta:GetChildren()) do
+            if (obj:IsA("Model") or obj:IsA("BasePart")) and not vistos[obj] then
+                if obj ~= player.Character and temVida(obj) and pegarParte(obj) then
+                    table.insert(lista, obj)
+                    vistos[obj] = true
+                end
+            end
+            if obj:IsA("Folder") or obj:IsA("Model") then
+                procurar(obj, prof + 1)
+            end
         end
     end
+
+    procurar(workspace, 0)
     return lista
 end
 
@@ -258,7 +277,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM (mira nativa no centro)
+-- LOOP: CÂMERA CUSTOM
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -336,7 +355,7 @@ function reaplicarHitbox()
     if hitboxAtivo then atualizarHitboxVisual() end
 end
 
--- ESP OTIMIZADO
+-- ESP
 local function criarESP(m)
     if espHighlights[m] then return end
     local root = pegarParte(m)
@@ -907,5 +926,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera Custom (mira nativa no centro)")
+print("🎯 Lock em QUALQUER coisa com vida (5 níveis)")
 print("═══════════════════════════════════════════")
