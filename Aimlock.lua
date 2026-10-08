@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP + HITBOX - v2 FINAL
---   🔒 Lock (3ª pessoa + mira centro) | 👁️ ESP | 💥 Hitbox
+--   EZEK LOCK + ESP + HITBOX - v3 REWORK
+--   🔒 Lock | 👁️ ESP Leve | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -8,13 +8,16 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v2 FINAL"
+local VERSAO = "v3 REWORK"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
+
+local MAX_DIST_ESP = 500
+local ESP_INTERVALO = 0.3
 
 local ativo = false
 local alvo = nil
@@ -24,6 +27,7 @@ local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
 local hitboxVisual = nil
+local camConn = nil
 local filtros = { players = true, dummies = true, monstros = true }
 
 -- DETECÇÃO DE VIDA
@@ -106,8 +110,8 @@ local function getTodos()
             end
         end
     end
-    for _, m in ipairs(workspace:GetDescendants()) do
-        if m:IsA("Model") and m ~= player.Character and not vistos[m] and temVida(m) and pegarParte(m) then
+    for _, m in ipairs(workspace:GetChildren()) do
+        if m:IsA("Model") and not vistos[m] and temVida(m) and pegarParte(m) then
             table.insert(lista, m)
             vistos[m] = true
         end
@@ -190,7 +194,6 @@ local function criarHPBar(m)
     local nomeLbl = Instance.new("TextLabel")
     nomeLbl.Name = "Nome"
     nomeLbl.Size = UDim2.new(1, 0, 0, 16)
-    nomeLbl.Position = UDim2.new(0, 0, 0, 0)
     nomeLbl.BackgroundTransparency = 1
     nomeLbl.Text = m.Name
     nomeLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -255,7 +258,7 @@ local function atualizarHPBar()
     end
 end
 
--- 🔥 LOOP: CÂMERA CUSTOM (mira nativa no centro)
+-- LOOP: CÂMERA CUSTOM (mira nativa no centro)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -268,7 +271,6 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🔥 Mantém Custom (mira nativa fica no centro)
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
@@ -276,7 +278,6 @@ local function atualizar()
         camera.CameraSubject = hum
     end
 
-    -- 🔥 Gira corpo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -285,7 +286,6 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 Câmera olha pro alvo
     local camPos = camera.CFrame.Position
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
 
@@ -336,16 +336,18 @@ function reaplicarHitbox()
     if hitboxAtivo then atualizarHitboxVisual() end
 end
 
--- ESP
+-- ESP OTIMIZADO
 local function criarESP(m)
     if espHighlights[m] then return end
     local root = pegarParte(m)
     if not root then return end
+
     local tipo = getTipo(m)
     local cor
     if tipo == "players" then cor = Color3.fromRGB(255, 70, 70)
     elseif tipo == "dummies" then cor = Color3.fromRGB(255, 200, 0)
     else cor = Color3.fromRGB(70, 150, 255) end
+
     local hl = Instance.new("Highlight")
     hl.FillColor = cor
     hl.FillTransparency = 0.5
@@ -353,13 +355,15 @@ local function criarESP(m)
     hl.OutlineTransparency = 0.2
     hl.Parent = m
     espHighlights[m] = hl
+
     local bb = Instance.new("BillboardGui")
     bb.Adornee = root
     bb.Size = UDim2.new(0, 180, 0, 45)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
-    bb.MaxDistance = 300
+    bb.MaxDistance = MAX_DIST_ESP
     bb.Parent = m
+
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 0.7
@@ -386,13 +390,34 @@ end
 
 local function atualizarESP()
     if not espAtivo then return end
+
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local minhaPos = root.Position
+
     local atuais = {}
-    for _, m in ipairs(getTodos()) do
+    local todos = getTodos()
+
+    for _, m in ipairs(todos) do
         if filtros[getTipo(m)] then
             atuais[m] = true
             if not espHighlights[m] then criarESP(m) end
+
+            local parteAlvo = pegarParte(m)
+            if parteAlvo then
+                local dist = (parteAlvo.Position - minhaPos).Magnitude
+                if dist > MAX_DIST_ESP then
+                    if espHighlights[m] and espHighlights[m].Parent then espHighlights[m]:Destroy() end
+                    espHighlights[m] = nil
+                    if espLabels[m] and espLabels[m].Parent then espLabels[m].Parent:Destroy() end
+                    espLabels[m] = nil
+                    atuais[m] = nil
+                end
+            end
         end
     end
+
     for m, hl in pairs(espHighlights) do
         if not atuais[m] or not m.Parent then
             if hl and hl.Parent then hl:Destroy() end
@@ -401,19 +426,20 @@ local function atualizarESP()
             espLabels[m] = nil
         end
     end
-    local char = player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
+
     for m, lbl in pairs(espLabels) do
-        if m.Parent and lbl.Parent and root then
+        if m.Parent and lbl.Parent then
             local hp, maxHp = getVida(m)
             local parteAlvo = pegarParte(m)
             if parteAlvo and hp and hp > 0 then
                 maxHp = maxHp or 100
                 local pct = hp / math.max(maxHp, 1)
-                local dist = math.floor((parteAlvo.Position - root.Position).Magnitude)
+                local dist = math.floor((parteAlvo.Position - minhaPos).Magnitude)
+
                 local cor = Color3.fromRGB(0, 255, 0)
                 if pct < 0.3 then cor = Color3.fromRGB(255, 0, 0)
                 elseif pct < 0.6 then cor = Color3.fromRGB(255, 255, 0) end
+
                 lbl.TextColor3 = cor
                 lbl.Text = string.format("%s\n%d/%d | %dm", m.Name, math.floor(hp), math.floor(maxHp), dist)
             end
@@ -421,7 +447,7 @@ local function atualizarESP()
     end
 end
 
-local espConn = nil
+local espThread = nil
 
 function toggleESP()
     espAtivo = not espAtivo
@@ -429,11 +455,15 @@ function toggleESP()
         for _, m in ipairs(getTodos()) do
             if filtros[getTipo(m)] then criarESP(m) end
         end
-        if espConn then espConn:Disconnect() end
-        espConn = RunService.Heartbeat:Connect(atualizarESP)
+        espThread = task.spawn(function()
+            while espAtivo do
+                pcall(atualizarESP)
+                task.wait(ESP_INTERVALO)
+            end
+        end)
         print("👁️ ESP ON")
     else
-        if espConn then espConn:Disconnect() espConn = nil end
+        espThread = nil
         limparESP()
         print("👁️ ESP OFF")
     end
@@ -806,6 +836,7 @@ function atualizarBotoes()
         btnHitbox.Text = "💥 HITBOX VISUAL: OFF"
         btnHitbox.BackgroundColor3 = CORES.botao
     end
+
     statusLabel.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n"
         .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF") .. "\n"
         .. (hitboxAtivo and "💥 Hitbox: ON" or "💥 Hitbox: OFF")
@@ -826,7 +857,6 @@ btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 btnHitbox.MouseButton1Click:Connect(toggleHitbox)
 
--- TECLADO + CONTROLE
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
@@ -860,7 +890,6 @@ UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
--- RESPAWN
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if hitboxAtivo then criarHitboxVisual() end
@@ -873,5 +902,10 @@ player.CharacterRemoving:Connect(function()
 end)
 
 atualizarBotoes()
-print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO .. " carregado!")
+print("═══════════════════════════════════════════")
+print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
+print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
+print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("📷 Câmera Custom (mira nativa no centro)")
+print("═══════════════════════════════════════════")
