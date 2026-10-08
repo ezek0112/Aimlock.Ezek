@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK
---   🔒 Lock | 👁️ ESP
+--   EZEK LOCK + ESP - v3 REWORK (ANTI-BUG)
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Bug de Animações
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -223,7 +223,9 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM
+-- ══════════════════════════════════════════════════
+-- 🔥 LOOP ANTI-BUG (imune a animações de habilidades)
+-- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -236,13 +238,27 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    if camera.CameraType ~= Enum.CameraType.Custom then
-        camera.CameraType = Enum.CameraType.Custom
+    -- 🛡️ ANTI-BUG 1: zera CameraOffset (screen shake de habilidades)
+    if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
+        hum.CameraOffset = Vector3.new(0, 0, 0)
     end
+
+    -- 🛡️ ANTI-BUG 2: força FOV normal (ignora zoom-shake de skills)
+    if math.abs(camera.FieldOfView - 70) > 0.5 then
+        camera.FieldOfView = 70
+    end
+
+    -- 🛡️ ANTI-BUG 3: força Scriptable (anti-flash/cutscene)
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
+    end
+
+    -- 🛡️ ANTI-BUG 4: força CameraSubject no Humanoid
     if camera.CameraSubject ~= hum then
         camera.CameraSubject = hum
     end
 
+    -- 🔥 GIRA CORPO PRO ALVO (mesmo com stun)
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -251,8 +267,16 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
+    -- 🔥 CÂMERA ATRÁS DE VOCÊ OLHANDO PRO ALVO
     local camPos = camera.CFrame.Position
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
+    camera.Focus = CFrame.new(posAlvo)
+
+    -- 🛡️ ANTI-BUG 5: limita velocidade (anti-knockback de habilidades)
+    local vel = root.AssemblyLinearVelocity
+    if vel.Magnitude > 200 then
+        root.AssemblyLinearVelocity = vel.Unit * 50
+    end
 
     atualizarHPBar()
 end
@@ -264,10 +288,16 @@ function ligarLock()
     alvo = t
     ativo = true
     criarHPBar(t)
+
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.AutoRotate = false end
-    if camConn then camConn:Disconnect() end
-    camConn = RunService.RenderStepped:Connect(atualizar)
+    if hum then
+        hum.AutoRotate = false
+        hum.CameraOffset = Vector3.new(0, 0, 0)
+    end
+
+    -- 🛡️ PRIORIDADE MÁXIMA (roda DEPOIS de todos os scripts do jogo)
+    RunService:UnbindFromRenderStep("EZEK_LOCK")
+    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 100, atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
 end
 
@@ -275,12 +305,19 @@ function desligarLock()
     if not ativo then return end
     ativo = false
     alvo = nil
+
+    RunService:UnbindFromRenderStep("EZEK_LOCK")
     if camConn then camConn:Disconnect() camConn = nil end
+
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.AutoRotate = true end
+    if hum then
+        hum.AutoRotate = true
+        hum.CameraOffset = Vector3.new(0, 0, 0)
+    end
     pcall(function()
         camera.CameraType = Enum.CameraType.Custom
+        camera.FieldOfView = 70
         if hum then camera.CameraSubject = hum end
     end)
     print("🔓 Lock OFF")
@@ -467,7 +504,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🎯 EZEK " .. VERSAO
+title.Text = "🛡️ EZEK " .. VERSAO
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 11
@@ -754,8 +791,9 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP - " .. VERSAO)
+print("🛡️ EZEK LOCK + ESP - " .. VERSAO .. " (ANTI-BUG)")
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("🛡️ Imune a: shake, FOV, flash, knockback")
 print("═══════════════════════════════════════════")
