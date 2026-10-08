@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP + HITBOX 2D - v3 REWORK
---   🔒 Lock | 👁️ ESP | 💥 Hitbox 2D (sem void)
+--   🔒 Lock | 👁️ ESP | 💥 Hitbox Visual 2D
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -148,7 +148,7 @@ local function acharAlvo()
 end
 
 -- ══════════════════════════════════════════════════
--- 💥 HITBOX 2D (só GUI - não cria Part, não dá void)
+-- 💥 HITBOX VISUAL 2D (só GUI - nada no workspace)
 -- ══════════════════════════════════════════════════
 local function criarHitboxVisual()
     if hitboxGui and hitboxGui.Parent then
@@ -160,14 +160,13 @@ local function criarHitboxVisual()
     gui.Name = "EZEK_HitboxGUI"
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
-    gui.DisplayOrder = 5
+    gui.DisplayOrder = 100
     gui.Parent = pg
 
     local circulo = Instance.new("Frame")
     circulo.Name = "Circulo"
     circulo.AnchorPoint = Vector2.new(0.5, 0.5)
     circulo.Position = UDim2.new(0.5, 0, 0.5, 0)
-    circulo.Size = UDim2.new(0, 200, 0, 200)
     circulo.BackgroundTransparency = HITBOX_TRANSP
     circulo.BackgroundColor3 = HITBOX_COR
     circulo.BorderSizePixel = 0
@@ -181,8 +180,12 @@ local function criarHitboxVisual()
     contorno.Transparency = 0.3
     contorno.Parent = circulo
 
+    -- 🔥 Aplica tamanho direto
+    local tamanhoPx = math.floor(HITBOX_MULT * 40)
+    circulo.Size = UDim2.new(0, tamanhoPx, 0, tamanhoPx)
+
     hitboxGui = gui
-    atualizarHitboxVisual()
+    print("💥 Hitbox 2D criada - Tamanho: " .. tamanhoPx .. "px")
 end
 
 local function removerHitboxVisual()
@@ -353,7 +356,11 @@ end
 
 function toggleHitbox()
     hitboxAtivo = not hitboxAtivo
-    if hitboxAtivo then criarHitboxVisual() else removerHitboxVisual() end
+    if hitboxAtivo then
+        criarHitboxVisual()
+    else
+        removerHitboxVisual()
+    end
     atualizarBotoes()
 end
 
@@ -626,7 +633,7 @@ local sTitulo = Instance.new("TextLabel")
 sTitulo.Size = UDim2.new(1, -16, 0, 16)
 sTitulo.Position = UDim2.new(0, 8, 0, 4)
 sTitulo.BackgroundTransparency = 1
-sTitulo.Text = "💥 Tamanho do Círculo: " .. string.format("%.1fx", HITBOX_MULT)
+sTitulo.Text = "💥 Tamanho: " .. string.format("%.1fx", HITBOX_MULT)
 sTitulo.TextColor3 = CORES.texto
 sTitulo.Font = Enum.Font.GothamBold
 sTitulo.TextSize = 12
@@ -679,7 +686,7 @@ local function processarSlider(input)
     HITBOX_MULT = math.floor(v * 10) / 10
     fillSlider.Size = UDim2.new(pct, 0, 1, 0)
     knob.Position = UDim2.new(pct, 0, 0.5, 0)
-    sTitulo.Text = "💥 Tamanho do Círculo: " .. string.format("%.1fx", HITBOX_MULT)
+    sTitulo.Text = "💥 Tamanho: " .. string.format("%.1fx", HITBOX_MULT)
     reaplicarHitbox()
 end
 
@@ -932,5 +939,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX 2D - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Hitbox 2D")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("💥 Hitbox 2D: círculo no centro da tela")
+print("💥 Hitbox 2D: círculo azul visual (só pra ver)")
 print("═══════════════════════════════════════════")
