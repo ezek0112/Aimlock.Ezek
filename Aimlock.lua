@@ -27,6 +27,7 @@ local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
 local hitboxVisual = nil
+local hitboxConexao = nil
 local camConn = nil
 local filtros = { players = true, dummies = true, monstros = true }
 
@@ -87,7 +88,6 @@ local function getTipo(m)
     return "monstros"
 end
 
--- 🔥 pegarParte MELHORADA (aceita BasePart direto)
 local function pegarParte(m)
     if not m then return nil end
     if m:IsA("BasePart") then return m end
@@ -97,7 +97,6 @@ local function pegarParte(m)
         or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- 🔥 pegarPeito MELHORADA
 local function pegarPeito(m)
     if not m then return nil end
     if m:IsA("BasePart") then return m end
@@ -106,7 +105,6 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- 🔥 getTodos BUSCA TUDO COM VIDA (5 níveis + BasePart)
 local function getTodos()
     local lista, vistos = {}, {}
 
@@ -153,7 +151,7 @@ local function acharAlvo()
     return melhor
 end
 
--- HITBOX VISUAL
+-- 🔥 HITBOX VISUAL (ANCHORED - sem física)
 local function criarHitboxVisual()
     local char = player.Character
     if not char then return end
@@ -171,20 +169,27 @@ local function criarHitboxVisual()
     esfera.CanCollide = false
     esfera.CanTouch = false
     esfera.CanQuery = false
-    esfera.Anchored = false
+    esfera.Anchored = true
     esfera.Massless = true
     esfera.CastShadow = false
     esfera.Parent = workspace
 
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = esfera
-    weld.Part1 = root
-    weld.Parent = esfera
-    esfera.CFrame = root.CFrame
     hitboxVisual = esfera
+
+    if hitboxConexao then hitboxConexao:Disconnect() end
+    hitboxConexao = RunService.RenderStepped:Connect(function()
+        if hitboxVisual and hitboxVisual.Parent then
+            local c = player.Character
+            local r = c and c:FindFirstChild("HumanoidRootPart")
+            if r then
+                hitboxVisual.CFrame = r.CFrame
+            end
+        end
+    end)
 end
 
 local function removerHitboxVisual()
+    if hitboxConexao then hitboxConexao:Disconnect() hitboxConexao = nil end
     if hitboxVisual and hitboxVisual.Parent then hitboxVisual:Destroy() end
     hitboxVisual = nil
 end
@@ -926,5 +931,5 @@ print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🎯 Lock em QUALQUER coisa com vida (5 níveis)")
+print("💥 Hitbox: esfera visual (não te joga no void)")
 print("═══════════════════════════════════════════")
