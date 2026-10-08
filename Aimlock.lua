@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP + HITBOX - v3 REWORK
---   🔒 Lock (qualquer coisa com vida) | 👁️ ESP | 💥 Hitbox
+--   EZEK LOCK + ESP + HITBOX 2D - v3 REWORK
+--   🔒 Lock | 👁️ ESP | 💥 Hitbox 2D (sem void)
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -26,8 +26,7 @@ local hitboxAtivo = false
 local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
-local hitboxVisual = nil
-local hitboxConexao = nil
+local hitboxGui = nil
 local camConn = nil
 local filtros = { players = true, dummies = true, monstros = true }
 
@@ -107,7 +106,6 @@ end
 
 local function getTodos()
     local lista, vistos = {}, {}
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and temVida(p.Character) then
             if not vistos[p.Character] then
@@ -116,7 +114,6 @@ local function getTodos()
             end
         end
     end
-
     local function procurar(pasta, prof)
         if prof > 5 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
@@ -131,7 +128,6 @@ local function getTodos()
             end
         end
     end
-
     procurar(workspace, 0)
     return lista
 end
@@ -151,53 +147,58 @@ local function acharAlvo()
     return melhor
 end
 
--- 🔥 HITBOX VISUAL (ANCHORED - sem física)
+-- ══════════════════════════════════════════════════
+-- 💥 HITBOX 2D (só GUI - não cria Part, não dá void)
+-- ══════════════════════════════════════════════════
 local function criarHitboxVisual()
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    if hitboxVisual and hitboxVisual.Parent then hitboxVisual:Destroy() end
+    if hitboxGui and hitboxGui.Parent then
+        hitboxGui:Destroy()
+    end
 
-    local esfera = Instance.new("Part")
-    esfera.Name = "EZEK_HitboxVisual"
-    esfera.Shape = Enum.PartType.Ball
-    esfera.Size = Vector3.new(HITBOX_MULT * 2, HITBOX_MULT * 2, HITBOX_MULT * 2)
-    esfera.Material = Enum.Material.ForceField
-    esfera.Color = HITBOX_COR
-    esfera.Transparency = HITBOX_TRANSP
-    esfera.CanCollide = false
-    esfera.CanTouch = false
-    esfera.CanQuery = false
-    esfera.Anchored = true
-    esfera.Massless = true
-    esfera.CastShadow = false
-    esfera.Parent = workspace
+    local pg = player:WaitForChild("PlayerGui")
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "EZEK_HitboxGUI"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 5
+    gui.Parent = pg
 
-    hitboxVisual = esfera
+    local circulo = Instance.new("Frame")
+    circulo.Name = "Circulo"
+    circulo.AnchorPoint = Vector2.new(0.5, 0.5)
+    circulo.Position = UDim2.new(0.5, 0, 0.5, 0)
+    circulo.Size = UDim2.new(0, 200, 0, 200)
+    circulo.BackgroundTransparency = HITBOX_TRANSP
+    circulo.BackgroundColor3 = HITBOX_COR
+    circulo.BorderSizePixel = 0
+    circulo.ZIndex = 5
+    circulo.Parent = gui
+    Instance.new("UICorner", circulo).CornerRadius = UDim.new(1, 0)
 
-    if hitboxConexao then hitboxConexao:Disconnect() end
-    hitboxConexao = RunService.RenderStepped:Connect(function()
-        if hitboxVisual and hitboxVisual.Parent then
-            local c = player.Character
-            local r = c and c:FindFirstChild("HumanoidRootPart")
-            if r then
-                hitboxVisual.CFrame = r.CFrame
-            end
-        end
-    end)
+    local contorno = Instance.new("UIStroke")
+    contorno.Color = HITBOX_COR
+    contorno.Thickness = 2
+    contorno.Transparency = 0.3
+    contorno.Parent = circulo
+
+    hitboxGui = gui
+    atualizarHitboxVisual()
 end
 
 local function removerHitboxVisual()
-    if hitboxConexao then hitboxConexao:Disconnect() hitboxConexao = nil end
-    if hitboxVisual and hitboxVisual.Parent then hitboxVisual:Destroy() end
-    hitboxVisual = nil
+    if hitboxGui and hitboxGui.Parent then
+        hitboxGui:Destroy()
+    end
+    hitboxGui = nil
 end
 
 local function atualizarHitboxVisual()
-    if not hitboxVisual or not hitboxVisual.Parent then return end
-    local novoSize = HITBOX_MULT * 2
-    hitboxVisual.Size = Vector3.new(novoSize, novoSize, novoSize)
+    if not hitboxGui or not hitboxGui.Parent then return end
+    local circulo = hitboxGui:FindFirstChild("Circulo")
+    if circulo then
+        local tamanhoPx = math.floor(HITBOX_MULT * 40)
+        circulo.Size = UDim2.new(0, tamanhoPx, 0, tamanhoPx)
+    end
 end
 
 -- HP BAR
@@ -611,7 +612,7 @@ end
 
 local btnLock = criarBotao("🔓 LOCK: OFF", 84)
 local btnEsp = criarBotao("👁️ ESP: OFF", 128)
-local btnHitbox = criarBotao("💥 HITBOX VISUAL: OFF", 172)
+local btnHitbox = criarBotao("💥 HITBOX 2D: OFF", 172)
 
 local sliderFrame = Instance.new("Frame")
 sliderFrame.Size = UDim2.new(1, 0, 0, 70)
@@ -854,10 +855,10 @@ function atualizarBotoes()
         btnEsp.BackgroundColor3 = CORES.botao
     end
     if hitboxAtivo then
-        btnHitbox.Text = "💥 HITBOX VISUAL: ON"
+        btnHitbox.Text = "💥 HITBOX 2D: ON"
         btnHitbox.BackgroundColor3 = CORES.on
     else
-        btnHitbox.Text = "💥 HITBOX VISUAL: OFF"
+        btnHitbox.Text = "💥 HITBOX 2D: OFF"
         btnHitbox.BackgroundColor3 = CORES.botao
     end
 
@@ -927,9 +928,9 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP + HITBOX 2D - " .. VERSAO)
 print("═══════════════════════════════════════════")
-print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
+print("🎮 Q = Lock | E = ESP | T = Hitbox 2D")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("💥 Hitbox: esfera visual (não te joga no void)")
+print("💥 Hitbox 2D: círculo no centro da tela")
 print("═══════════════════════════════════════════")
