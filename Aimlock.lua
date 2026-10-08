@@ -21,7 +21,6 @@ local espAtivo = false
 local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
-local camConn = nil
 local filtros = { players = true, dummies = true, monstros = true }
 
 -- DETECÇÃO DE VIDA
@@ -224,7 +223,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP ANTI-BUG (imune a animações de habilidades)
+-- 🔥 LOOP ANTI-BUG (imune a animações + câmera segue)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -238,27 +237,22 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ ANTI-BUG 1: zera CameraOffset (screen shake de habilidades)
+    -- 🛡️ ANTI-BUG 1: zera CameraOffset (shake)
     if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🛡️ ANTI-BUG 2: força FOV normal (ignora zoom-shake de skills)
+    -- 🛡️ ANTI-BUG 2: força FOV normal
     if math.abs(camera.FieldOfView - 70) > 0.5 then
         camera.FieldOfView = 70
     end
 
-    -- 🛡️ ANTI-BUG 3: força Scriptable (anti-flash/cutscene)
+    -- 🛡️ ANTI-BUG 3: força Scriptable
     if camera.CameraType ~= Enum.CameraType.Scriptable then
         camera.CameraType = Enum.CameraType.Scriptable
     end
 
-    -- 🛡️ ANTI-BUG 4: força CameraSubject no Humanoid
-    if camera.CameraSubject ~= hum then
-        camera.CameraSubject = hum
-    end
-
-    -- 🔥 GIRA CORPO PRO ALVO (mesmo com stun)
+    -- 🔥 GIRA CORPO PRO ALVO
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -268,11 +262,17 @@ local function atualizar()
     end
 
     -- 🔥 CÂMERA ATRÁS DE VOCÊ OLHANDO PRO ALVO
-    local camPos = camera.CFrame.Position
+    local dirCam = posAlvo - minhaPos
+    if dirCam.Magnitude < 0.1 then return end
+    dirCam = dirCam.Unit
+
+    local eyePos = minhaPos + Vector3.new(0, 3.5, 0)
+    local camPos = eyePos - dirCam * 13
+
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
     camera.Focus = CFrame.new(posAlvo)
 
-    -- 🛡️ ANTI-BUG 5: limita velocidade (anti-knockback de habilidades)
+    -- 🛡️ ANTI-BUG 4: limita velocidade (anti-knockback)
     local vel = root.AssemblyLinearVelocity
     if vel.Magnitude > 200 then
         root.AssemblyLinearVelocity = vel.Unit * 50
@@ -295,9 +295,9 @@ function ligarLock()
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🛡️ PRIORIDADE MÁXIMA (roda DEPOIS de todos os scripts do jogo)
+    -- 🛡️ Prioridade +1 (roda junto com a câmera nativa)
     RunService:UnbindFromRenderStep("EZEK_LOCK")
-    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 100, atualizar)
+    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 1, atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
 end
 
@@ -307,7 +307,6 @@ function desligarLock()
     alvo = nil
 
     RunService:UnbindFromRenderStep("EZEK_LOCK")
-    if camConn then camConn:Disconnect() camConn = nil end
 
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -796,4 +795,5 @@ print("════════════════════════�
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
 print("🛡️ Imune a: shake, FOV, flash, knockback")
+print("📷 Câmera atrás de você (13 studs) olhando pro alvo")
 print("═══════════════════════════════════════════")
