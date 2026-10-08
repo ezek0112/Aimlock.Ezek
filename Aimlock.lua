@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP + HITBOX VISUAL - v2.1 ADVANCED
---   🔒 Lock | 👁️ ESP | 💥 Hitbox | 📷 Câmera Spring
+--   EZEK LOCK + ESP + HITBOX - v2 FINAL
+--   🔒 Lock (3ª pessoa + mira centro) | 👁️ ESP | 💥 Hitbox
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -8,22 +8,13 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v2.1 ADVANCED"
-
+local VERSAO = "v2 FINAL"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local HITBOX_MULT = 3.5
 local HITBOX_COR = Color3.fromRGB(0, 150, 255)
 local HITBOX_TRANSP = 0.7
-
-local CAM_HEIGHT = 3.7
-local DISTANCIA_DA_CAMERA = 13.2
-
-local cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
-local cameraSalva = false
-local camConn = nil
-local camAtual = nil
 
 local ativo = false
 local alvo = nil
@@ -33,10 +24,9 @@ local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
 local hitboxVisual = nil
-
 local filtros = { players = true, dummies = true, monstros = true }
 
--- ============ DETECÇÃO DE VIDA ============
+-- DETECÇÃO DE VIDA
 local NOMES_VIDA = {"Health","HP","health","CurrentHealth","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints"}
 local NOMES_MAX = {"MaxHealth","MaxHP","maxhealth","MaxHp","HPMAX","VidaMaxima","MaxVida","TotalHealth","MaxLife"}
 
@@ -93,7 +83,6 @@ local function getTipo(m)
     return "monstros"
 end
 
--- ============ AUXILIARES ============
 local function pegarParte(m)
     if not m then return nil end
     return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart")
@@ -130,7 +119,6 @@ local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(35)
     local camPos = camera.CFrame.Position
     local camLook = camera.CFrame.LookVector
-
     for _, m in ipairs(getTodos()) do
         local parte = pegarParte(m)
         if parte then
@@ -142,18 +130,13 @@ local function acharAlvo()
     return melhor
 end
 
--- ══════════════════════════════════════════════════
--- 🔥 HITBOX VISUAL
--- ══════════════════════════════════════════════════
+-- HITBOX VISUAL
 local function criarHitboxVisual()
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-
-    if hitboxVisual and hitboxVisual.Parent then
-        hitboxVisual:Destroy()
-    end
+    if hitboxVisual and hitboxVisual.Parent then hitboxVisual:Destroy() end
 
     local esfera = Instance.new("Part")
     esfera.Name = "EZEK_HitboxVisual"
@@ -174,15 +157,12 @@ local function criarHitboxVisual()
     weld.Part0 = esfera
     weld.Part1 = root
     weld.Parent = esfera
-
     esfera.CFrame = root.CFrame
     hitboxVisual = esfera
 end
 
 local function removerHitboxVisual()
-    if hitboxVisual and hitboxVisual.Parent then
-        hitboxVisual:Destroy()
-    end
+    if hitboxVisual and hitboxVisual.Parent then hitboxVisual:Destroy() end
     hitboxVisual = nil
 end
 
@@ -192,13 +172,12 @@ local function atualizarHitboxVisual()
     hitboxVisual.Size = Vector3.new(novoSize, novoSize, novoSize)
 end
 
--- ============ HP BAR ============
+-- HP BAR
 local function criarHPBar(m)
     if hpBarAlvo and hpBarAlvo.Parent then hpBarAlvo:Destroy() end
     if not m or not m.Parent then return end
     local root = pegarParte(m)
     if not root then return end
-
     local bb = Instance.new("BillboardGui")
     bb.Adornee = root
     bb.Size = UDim2.new(0, 200, 0, 55)
@@ -267,7 +246,6 @@ local function atualizarHPBar()
             else fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50) end
         end
     end
-
     local hpLbl = hpBarAlvo:FindFirstChild("HpLbl")
     if hpLbl then
         hpLbl.Text = string.format("%d/%d", math.floor(hp), math.floor(maxHp))
@@ -277,12 +255,9 @@ local function atualizarHPBar()
     end
 end
 
--- ══════════════════════════════════════════════════
--- 🔥 CÂMERA AVANÇADA (spring + damping adaptativo)
--- ══════════════════════════════════════════════════
+-- 🔥 LOOP: CÂMERA CUSTOM (mira nativa no centro)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
-
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -291,79 +266,41 @@ local function atualizar()
 
     local parteAlvo = pegarPeito(alvo)
     if not parteAlvo then return end
+    if not temVida(alvo) then desligarLock() return end
 
-    if not temVida(alvo) then
-        desligarLock()
-        return
+    -- 🔥 Mantém Custom (mira nativa fica no centro)
+    if camera.CameraType ~= Enum.CameraType.Custom then
+        camera.CameraType = Enum.CameraType.Custom
+    end
+    if camera.CameraSubject ~= hum then
+        camera.CameraSubject = hum
     end
 
-    -- 🔥 SALVA ESTADO DA CÂMERA
-    if not cameraSalva then
-        pcall(function()
-            cameraOriginal.CameraType = camera.CameraType
-            cameraOriginal.CameraSubject = camera.CameraSubject
-            cameraOriginal.FieldOfView = camera.FieldOfView
-            cameraOriginal.CameraMode = player.CameraMode
-        end)
-        cameraSalva = true
-        camAtual = camera.CFrame
+    -- 🔥 Gira corpo
+    local minhaPos = root.Position
+    local posAlvo = parteAlvo.Position
+    local dir = posAlvo - minhaPos
+    local flat = Vector3.new(dir.X, 0, dir.Z)
+    if flat.Magnitude > 0.01 then
+        root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 MIRA NO PEITO DO ALVO
-    local aimPos = parteAlvo.Position
-
-    -- 🔥 DISTÂNCIA REAL
-    local distReal = (aimPos - root.Position).Magnitude
-    if distReal < 1 then distReal = 1 end
-
-    -- 🔥 POSIÇÃO DA CÂMERA ATRÁS DE VOCÊ
-    local dirParaAlvo = (aimPos - root.Position).Unit
-    local eyePos = root.Position + Vector3.new(0, CAM_HEIGHT, 0)
-    local camPos = eyePos - dirParaAlvo * DISTANCIA_DA_CAMERA
-
-    -- 🔥 CF DESTINO
-    local cfDestino = CFrame.lookAt(camPos, aimPos)
-
-    -- 🔥 SPRING/DAMPING (mais rápido quando longe, suave quando perto)
-    if not camAtual then camAtual = cfDestino end
-
-    local velocidade = math.clamp(1 - (distReal / 200), 0.08, 0.35)
-
-    -- Suavização exponencial framerate-independent
-    local dt = 1/60
-    local fator = 1 - math.exp(-velocidade * 60 * dt)
-
-    camAtual = camAtual:Lerp(cfDestino, fator)
-
-    -- 🔥 APLICA
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
-    end
-    camera.CFrame = camAtual
-    camera.Focus = CFrame.new(aimPos)
-
-    -- 🔥 ROTACIONA O CORPO SUAVE
-    local flatAim = Vector3.new(aimPos.X, root.Position.Y, aimPos.Z)
-    local cfCorpo = CFrame.new(root.Position, flatAim)
-    root.CFrame = root.CFrame:Lerp(cfCorpo, 0.35)
+    -- 🔥 Câmera olha pro alvo
+    local camPos = camera.CFrame.Position
+    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
 
     atualizarHPBar()
 end
 
--- ============ LOCK ============
 function ligarLock()
     if ativo then return end
     local t = acharAlvo()
-    if not t then print("❌ Nenhum alvo com vida na frente") return end
+    if not t then print("❌ Nenhum alvo") return end
     alvo = t
     ativo = true
-
     criarHPBar(t)
-
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
-
-    camAtual = nil
     if camConn then camConn:Disconnect() end
     camConn = RunService.RenderStepped:Connect(atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
@@ -373,40 +310,14 @@ function desligarLock()
     if not ativo then return end
     ativo = false
     alvo = nil
-
     if camConn then camConn:Disconnect() camConn = nil end
-
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
-
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = true end
-
-    camAtual = nil
-
-    if cameraSalva then
-        pcall(function()
-            camera.CameraType = cameraOriginal.CameraType or Enum.CameraType.Custom
-            if cameraOriginal.CameraSubject and cameraOriginal.CameraSubject.Parent then
-                camera.CameraSubject = cameraOriginal.CameraSubject
-            elseif hum then
-                camera.CameraSubject = hum
-            end
-            if cameraOriginal.FieldOfView then
-                camera.FieldOfView = cameraOriginal.FieldOfView
-            end
-            if cameraOriginal.CameraMode then
-                player.CameraMode = cameraOriginal.CameraMode
-            end
-        end)
-        cameraSalva = false
-        cameraOriginal = { CameraType = nil, CameraSubject = nil, FieldOfView = nil, CameraMode = nil }
-    else
-        pcall(function()
-            camera.CameraType = Enum.CameraType.Custom
-            if hum then camera.CameraSubject = hum end
-        end)
-    end
-
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Custom
+        if hum then camera.CameraSubject = hum end
+    end)
     print("🔓 Lock OFF")
 end
 
@@ -415,37 +326,26 @@ function toggleLock()
     atualizarBotoes()
 end
 
--- ============ HITBOX TOGGLE ============
 function toggleHitbox()
     hitboxAtivo = not hitboxAtivo
-    if hitboxAtivo then
-        criarHitboxVisual()
-        print("💥 Círculo da hitbox ON")
-    else
-        removerHitboxVisual()
-        print("💥 Círculo da hitbox OFF")
-    end
+    if hitboxAtivo then criarHitboxVisual() else removerHitboxVisual() end
     atualizarBotoes()
 end
 
 function reaplicarHitbox()
-    if hitboxAtivo then
-        atualizarHitboxVisual()
-    end
+    if hitboxAtivo then atualizarHitboxVisual() end
 end
 
--- ============ ESP ============
+-- ESP
 local function criarESP(m)
     if espHighlights[m] then return end
     local root = pegarParte(m)
     if not root then return end
-
     local tipo = getTipo(m)
     local cor
     if tipo == "players" then cor = Color3.fromRGB(255, 70, 70)
     elseif tipo == "dummies" then cor = Color3.fromRGB(255, 200, 0)
     else cor = Color3.fromRGB(70, 150, 255) end
-
     local hl = Instance.new("Highlight")
     hl.FillColor = cor
     hl.FillTransparency = 0.5
@@ -453,7 +353,6 @@ local function criarESP(m)
     hl.OutlineTransparency = 0.2
     hl.Parent = m
     espHighlights[m] = hl
-
     local bb = Instance.new("BillboardGui")
     bb.Adornee = root
     bb.Size = UDim2.new(0, 180, 0, 45)
@@ -461,7 +360,6 @@ local function criarESP(m)
     bb.AlwaysOnTop = true
     bb.MaxDistance = 300
     bb.Parent = m
-
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 0.7
@@ -488,7 +386,6 @@ end
 
 local function atualizarESP()
     if not espAtivo then return end
-
     local atuais = {}
     for _, m in ipairs(getTodos()) do
         if filtros[getTipo(m)] then
@@ -496,7 +393,6 @@ local function atualizarESP()
             if not espHighlights[m] then criarESP(m) end
         end
     end
-
     for m, hl in pairs(espHighlights) do
         if not atuais[m] or not m.Parent then
             if hl and hl.Parent then hl:Destroy() end
@@ -505,7 +401,6 @@ local function atualizarESP()
             espLabels[m] = nil
         end
     end
-
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     for m, lbl in pairs(espLabels) do
@@ -516,11 +411,9 @@ local function atualizarESP()
                 maxHp = maxHp or 100
                 local pct = hp / math.max(maxHp, 1)
                 local dist = math.floor((parteAlvo.Position - root.Position).Magnitude)
-
                 local cor = Color3.fromRGB(0, 255, 0)
                 if pct < 0.3 then cor = Color3.fromRGB(255, 0, 0)
                 elseif pct < 0.6 then cor = Color3.fromRGB(255, 255, 0) end
-
                 lbl.TextColor3 = cor
                 lbl.Text = string.format("%s\n%d/%d | %dm", m.Name, math.floor(hp), math.floor(maxHp), dist)
             end
@@ -547,7 +440,7 @@ function toggleESP()
     atualizarBotoes()
 end
 
--- ============ GUI ============
+-- GUI
 local CORES = {
     fundo = Color3.fromRGB(20,20,25), topo = Color3.fromRGB(30,30,40),
     botao = Color3.fromRGB(45,45,60), on = Color3.fromRGB(0,170,90),
@@ -737,8 +630,7 @@ end
 
 hitArea.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        arrastando = true
-        processarSlider(input)
+        arrastando = true; processarSlider(input)
     end
 end)
 UserInputService.InputChanged:Connect(function(input)
@@ -777,7 +669,6 @@ local function criarCheck(texto, chave, y)
     cf.Position = UDim2.new(0, 8, 0, y)
     cf.BackgroundTransparency = 1
     cf.Parent = filtroFrame
-
     local box = Instance.new("TextButton")
     box.Size = UDim2.new(0, 22, 0, 22)
     box.Position = UDim2.new(0, 0, 0, 2)
@@ -788,7 +679,6 @@ local function criarCheck(texto, chave, y)
     box.TextSize = 14
     box.Parent = cf
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 5)
-
     local lb = Instance.new("TextLabel")
     lb.Size = UDim2.new(1, -30, 1, 0)
     lb.Position = UDim2.new(0, 30, 0, 0)
@@ -799,7 +689,6 @@ local function criarCheck(texto, chave, y)
     lb.TextSize = 13
     lb.TextXAlignment = Enum.TextXAlignment.Left
     lb.Parent = cf
-
     local function toggle()
         filtros[chave] = not filtros[chave]
         box.BackgroundColor3 = filtros[chave] and CORES.checkOn or CORES.checkOff
@@ -813,7 +702,6 @@ local function criarCheck(texto, chave, y)
             end
         end
     end
-
     box.MouseButton1Click:Connect(toggle)
     lb.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -918,7 +806,6 @@ function atualizarBotoes()
         btnHitbox.Text = "💥 HITBOX VISUAL: OFF"
         btnHitbox.BackgroundColor3 = CORES.botao
     end
-
     statusLabel.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n"
         .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF") .. "\n"
         .. (hitboxAtivo and "💥 Hitbox: ON" or "💥 Hitbox: OFF")
@@ -939,39 +826,29 @@ btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 btnHitbox.MouseButton1Click:Connect(toggleHitbox)
 
--- ============ TECLADO + CONTROLE ============
+-- TECLADO + CONTROLE
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
     if input.KeyCode == Enum.KeyCode.T then toggleHitbox() return end
-
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
-
     if r1 and r2 then
         local a = tick()
         if a - ultLock > 0.8 then
-            toggleLock()
-            ultLock = a
-            r1 = false
-            r2 = false
+            toggleLock(); ultLock = a; r1 = false; r2 = false
         end
     end
-
     if l1 and l2 then
         local a = tick()
         if a - ultEsp > 0.8 then
-            toggleESP()
-            ultEsp = a
-            l1 = false
-            l2 = false
+            toggleESP(); ultEsp = a; l1 = false; l2 = false
         end
     end
 end)
@@ -983,27 +860,18 @@ UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
--- ============ RESPAWN ============
+-- RESPAWN
 player.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
-    if hitboxAtivo then
-        criarHitboxVisual()
-    end
+    if hitboxAtivo then criarHitboxVisual() end
 end)
 
 player.CharacterRemoving:Connect(function()
-    cameraSalva = false
-    camAtual = nil
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
     removerHitboxVisual()
 end)
 
 atualizarBotoes()
-print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO)
-print("═══════════════════════════════════════════")
+print("⚡ EZEK LOCK + ESP + HITBOX - " .. VERSAO .. " carregado!")
 print("🎮 Q = Lock | E = ESP | T = Círculo hitbox")
-print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera Spring (avançada, sem travar)")
-print("═══════════════════════════════════════════")
