@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP - v3 REWORK (ANTI-BUG + CONTROLE)
---   🔒 Lock | 👁️ ESP | 🛡️ Anti-Bug | 🎮 R1+R2 Prioridade
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Bug | 🎮 R1+R2
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -709,41 +709,6 @@ closeBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- 🎮 BOTÕES FLUTUANTES (por cima de tudo)
-local btnFlutuanteLock = Instance.new("TextButton")
-btnFlutuanteLock.Size = UDim2.new(0, 70, 0, 70)
-btnFlutuanteLock.Position = UDim2.new(0, 20, 0.5, -80)
-btnFlutuanteLock.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-btnFlutuanteLock.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnFlutuanteLock.Font = Enum.Font.GothamBold
-btnFlutuanteLock.TextSize = 24
-btnFlutuanteLock.Text = "🔓"
-btnFlutuanteLock.ZIndex = 999999
-btnFlutuanteLock.Parent = sg
-Instance.new("UICorner", btnFlutuanteLock).CornerRadius = UDim.new(1, 0)
-Instance.new("UIStroke", btnFlutuanteLock).Thickness = 2
-
-local btnFlutuanteEsp = Instance.new("TextButton")
-btnFlutuanteEsp.Size = UDim2.new(0, 70, 0, 70)
-btnFlutuanteEsp.Position = UDim2.new(0, 20, 0.5, 0)
-btnFlutuanteEsp.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-btnFlutuanteEsp.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnFlutuanteEsp.Font = Enum.Font.GothamBold
-btnFlutuanteEsp.TextSize = 24
-btnFlutuanteEsp.Text = "👁️"
-btnFlutuanteEsp.ZIndex = 999999
-btnFlutuanteEsp.Parent = sg
-Instance.new("UICorner", btnFlutuanteEsp).CornerRadius = UDim.new(1, 0)
-Instance.new("UIStroke", btnFlutuanteEsp).Thickness = 2
-
-btnFlutuanteLock.MouseButton1Click:Connect(function()
-    toggleLock()
-end)
-
-btnFlutuanteEsp.MouseButton1Click:Connect(function()
-    toggleESP()
-end)
-
 function atualizarBotoes()
     if ativo then
         btnLock.Text = "🔒 LOCK: ON"
@@ -773,18 +738,13 @@ function atualizarBotoes()
             infoLabel.Text = "🎯 Alvo: " .. alvo.Name
         end
     end
-
-    -- 🔥 Sincroniza botões flutuantes
-    btnFlutuanteLock.Text = ativo and "🔒" or "🔓"
-    btnFlutuanteLock.BackgroundColor3 = ativo and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(40, 40, 60)
-    btnFlutuanteEsp.BackgroundColor3 = espAtivo and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(40, 40, 60)
 end
 
 btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 
 -- ══════════════════════════════════════════════════
--- 🎮 CONTROLES COM PRIORIDADE MÁXIMA (ContextActionService)
+-- 🎮 CONTROLES COM PRIORIDADE MÁXIMA
 -- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
@@ -820,7 +780,7 @@ local function processarBotao(nome, state)
         if nome == "EZEK_L1" then l1 = false end
         if nome == "EZEK_L2" then l2 = false end
     end
-    return Enum.ContextActionResult.Sink
+    return Enum.ContextActionResult.Pass
 end
 
 ContextActionService:BindActionAtPriority("EZEK_R1", processarBotao, false, 3000, Enum.KeyCode.ButtonR1)
@@ -846,5 +806,5 @@ print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP (prioridade máxima)")
-print("📱 Botões flutuantes na tela também funcionam")
+print("🛡️ Anti-bug: shake, FOV, flash, knockback")
 print("═══════════════════════════════════════════")
