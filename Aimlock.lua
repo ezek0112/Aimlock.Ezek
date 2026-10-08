@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK
---   🔒 Lock | 👁️ ESP
+--   EZEK LOCK + ESP + HITBOX 2D - v3 REWORK
+--   🔒 Lock | 👁️ ESP | 💥 Hitbox Visual 2D
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -12,15 +12,21 @@ local VERSAO = "v3 REWORK"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
+local HITBOX_MULT = 3.5
+local HITBOX_COR = Color3.fromRGB(0, 150, 255)
+local HITBOX_TRANSP = 0.7
+
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
 
 local ativo = false
 local alvo = nil
 local espAtivo = false
+local hitboxAtivo = false
 local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
+local hitboxGui = nil
 local camConn = nil
 local filtros = { players = true, dummies = true, monstros = true }
 
@@ -139,6 +145,63 @@ local function acharAlvo()
         end
     end
     return melhor
+end
+
+-- ══════════════════════════════════════════════════
+-- 💥 HITBOX VISUAL 2D (só GUI - nada no workspace)
+-- ══════════════════════════════════════════════════
+local function criarHitboxVisual()
+    if hitboxGui and hitboxGui.Parent then
+        hitboxGui:Destroy()
+    end
+
+    local pg = player:WaitForChild("PlayerGui")
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "EZEK_HitboxGUI"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 100
+    gui.Parent = pg
+
+    local circulo = Instance.new("Frame")
+    circulo.Name = "Circulo"
+    circulo.AnchorPoint = Vector2.new(0.5, 0.5)
+    circulo.Position = UDim2.new(0.5, 0, 0.5, 0)
+    circulo.BackgroundTransparency = HITBOX_TRANSP
+    circulo.BackgroundColor3 = HITBOX_COR
+    circulo.BorderSizePixel = 0
+    circulo.ZIndex = 5
+    circulo.Parent = gui
+    Instance.new("UICorner", circulo).CornerRadius = UDim.new(1, 0)
+
+    local contorno = Instance.new("UIStroke")
+    contorno.Color = HITBOX_COR
+    contorno.Thickness = 2
+    contorno.Transparency = 0.3
+    contorno.Parent = circulo
+
+    -- 🔥 Aplica tamanho direto
+    local tamanhoPx = math.floor(HITBOX_MULT * 40)
+    circulo.Size = UDim2.new(0, tamanhoPx, 0, tamanhoPx)
+
+    hitboxGui = gui
+    print("💥 Hitbox 2D criada - Tamanho: " .. tamanhoPx .. "px")
+end
+
+local function removerHitboxVisual()
+    if hitboxGui and hitboxGui.Parent then
+        hitboxGui:Destroy()
+    end
+    hitboxGui = nil
+end
+
+local function atualizarHitboxVisual()
+    if not hitboxGui or not hitboxGui.Parent then return end
+    local circulo = hitboxGui:FindFirstChild("Circulo")
+    if circulo then
+        local tamanhoPx = math.floor(HITBOX_MULT * 40)
+        circulo.Size = UDim2.new(0, tamanhoPx, 0, tamanhoPx)
+    end
 end
 
 -- HP BAR
@@ -291,6 +354,20 @@ function toggleLock()
     atualizarBotoes()
 end
 
+function toggleHitbox()
+    hitboxAtivo = not hitboxAtivo
+    if hitboxAtivo then
+        criarHitboxVisual()
+    else
+        removerHitboxVisual()
+    end
+    atualizarBotoes()
+end
+
+function reaplicarHitbox()
+    if hitboxAtivo then atualizarHitboxVisual() end
+end
+
 -- ESP
 local function criarESP(m)
     if espHighlights[m] then return end
@@ -432,6 +509,8 @@ local CORES = {
     off = Color3.fromRGB(180,50,50), texto = Color3.fromRGB(240,240,240),
     textoFraco = Color3.fromRGB(160,160,170), borda = Color3.fromRGB(90,90,120),
     checkOn = Color3.fromRGB(0,170,90), checkOff = Color3.fromRGB(60,60,75),
+    sliderBg = Color3.fromRGB(40,40,55), sliderFill = Color3.fromRGB(0,150,255),
+    sliderKnob = Color3.fromRGB(220,220,230),
 }
 
 local sg = Instance.new("ScreenGui")
@@ -440,7 +519,7 @@ sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.Parent = player:WaitForChild("PlayerGui")
 
-local tamW, tamH = 240, 440
+local tamW, tamH = 240, 560
 local tamanhoNormal = UDim2.new(0, tamW, 0, tamH)
 local tamanhoMin = UDim2.new(0, tamW, 0, 40)
 
@@ -499,16 +578,16 @@ scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 6
 scroll.ScrollBarImageColor3 = CORES.borda
-scroll.CanvasSize = UDim2.new(0, 0, 0, 420)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 540)
 scroll.Parent = main
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -10, 0, 420)
+content.Size = UDim2.new(1, -10, 0, 540)
 content.BackgroundTransparency = 1
 content.Parent = scroll
 
 local statusFrame = Instance.new("Frame")
-statusFrame.Size = UDim2.new(1, 0, 0, 56)
+statusFrame.Size = UDim2.new(1, 0, 0, 74)
 statusFrame.BackgroundColor3 = CORES.topo
 statusFrame.BorderSizePixel = 0
 statusFrame.Parent = content
@@ -518,7 +597,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 1, -12)
 statusLabel.Position = UDim2.new(0, 8, 0, 6)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "🔓 Lock: OFF\n👁️ ESP: OFF"
+statusLabel.Text = "🔓 Lock: OFF\n👁️ ESP: OFF\n💥 Hitbox: OFF"
 statusLabel.TextColor3 = CORES.textoFraco
 statusLabel.Font = Enum.Font.GothamMedium
 statusLabel.TextSize = 13
@@ -528,7 +607,7 @@ statusLabel.Parent = statusFrame
 
 local function criarBotao(txt, y)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 42)
+    b.Size = UDim2.new(1, 0, 0, 38)
     b.Position = UDim2.new(0, 0, 0, y)
     b.BackgroundColor3 = CORES.botao
     b.Text = txt; b.TextColor3 = CORES.texto
@@ -538,12 +617,98 @@ local function criarBotao(txt, y)
     return b
 end
 
-local btnLock = criarBotao("🔓 LOCK: OFF", 66)
-local btnEsp = criarBotao("👁️ ESP: OFF", 116)
+local btnLock = criarBotao("🔓 LOCK: OFF", 84)
+local btnEsp = criarBotao("👁️ ESP: OFF", 128)
+local btnHitbox = criarBotao("💥 HITBOX 2D: OFF", 172)
+
+local sliderFrame = Instance.new("Frame")
+sliderFrame.Size = UDim2.new(1, 0, 0, 70)
+sliderFrame.Position = UDim2.new(0, 0, 0, 216)
+sliderFrame.BackgroundColor3 = CORES.topo
+sliderFrame.BorderSizePixel = 0
+sliderFrame.Parent = content
+Instance.new("UICorner", sliderFrame).CornerRadius = UDim.new(0, 8)
+
+local sTitulo = Instance.new("TextLabel")
+sTitulo.Size = UDim2.new(1, -16, 0, 16)
+sTitulo.Position = UDim2.new(0, 8, 0, 4)
+sTitulo.BackgroundTransparency = 1
+sTitulo.Text = "💥 Tamanho: " .. string.format("%.1fx", HITBOX_MULT)
+sTitulo.TextColor3 = CORES.texto
+sTitulo.Font = Enum.Font.GothamBold
+sTitulo.TextSize = 12
+sTitulo.TextXAlignment = Enum.TextXAlignment.Left
+sTitulo.Parent = sliderFrame
+
+local trilha = Instance.new("Frame")
+trilha.Size = UDim2.new(1, -16, 0, 12)
+trilha.Position = UDim2.new(0, 8, 0, 32)
+trilha.BackgroundColor3 = CORES.sliderBg
+trilha.BorderSizePixel = 0
+trilha.Parent = sliderFrame
+Instance.new("UICorner", trilha).CornerRadius = UDim.new(1, 0)
+
+local SLIDER_MIN = 1
+local SLIDER_MAX = 30
+
+local fillSlider = Instance.new("Frame")
+fillSlider.Size = UDim2.new((HITBOX_MULT - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1, 0)
+fillSlider.BackgroundColor3 = CORES.sliderFill
+fillSlider.BorderSizePixel = 0
+fillSlider.Parent = trilha
+Instance.new("UICorner", fillSlider).CornerRadius = UDim.new(1, 0)
+
+local knob = Instance.new("Frame")
+knob.Size = UDim2.new(0, 18, 0, 18)
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new((HITBOX_MULT - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 0.5, 0)
+knob.BackgroundColor3 = CORES.sliderKnob
+knob.BorderSizePixel = 0
+knob.ZIndex = 2
+knob.Parent = trilha
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+local hitArea = Instance.new("TextButton")
+hitArea.Size = UDim2.new(1, 0, 0, 26)
+hitArea.Position = UDim2.new(0, 8, 0, 26)
+hitArea.BackgroundTransparency = 1
+hitArea.Text = ""
+hitArea.ZIndex = 3
+hitArea.Parent = sliderFrame
+
+local arrastando = false
+
+local function processarSlider(input)
+    local w = trilha.AbsoluteSize.X
+    if w <= 0 then return end
+    local pct = math.clamp((input.Position.X - trilha.AbsolutePosition.X) / w, 0, 1)
+    local v = SLIDER_MIN + (SLIDER_MAX - SLIDER_MIN) * pct
+    HITBOX_MULT = math.floor(v * 10) / 10
+    fillSlider.Size = UDim2.new(pct, 0, 1, 0)
+    knob.Position = UDim2.new(pct, 0, 0.5, 0)
+    sTitulo.Text = "💥 Tamanho: " .. string.format("%.1fx", HITBOX_MULT)
+    reaplicarHitbox()
+end
+
+hitArea.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        arrastando = true; processarSlider(input)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if arrastando and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        processarSlider(input)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        arrastando = false
+    end
+end)
 
 local filtroFrame = Instance.new("Frame")
 filtroFrame.Size = UDim2.new(1, 0, 0, 110)
-filtroFrame.Position = UDim2.new(0, 0, 0, 166)
+filtroFrame.Position = UDim2.new(0, 0, 0, 294)
 filtroFrame.BackgroundColor3 = CORES.topo
 filtroFrame.BorderSizePixel = 0
 filtroFrame.Parent = content
@@ -613,7 +778,7 @@ criarCheck("👹 Monstros", "monstros", 86)
 
 local infoBox = Instance.new("Frame")
 infoBox.Size = UDim2.new(1, 0, 0, 55)
-infoBox.Position = UDim2.new(0, 0, 0, 286)
+infoBox.Position = UDim2.new(0, 0, 0, 414)
 infoBox.BackgroundColor3 = CORES.topo
 infoBox.BorderSizePixel = 0
 infoBox.Visible = false
@@ -696,10 +861,18 @@ function atualizarBotoes()
         btnEsp.Text = "👁️ ESP: OFF"
         btnEsp.BackgroundColor3 = CORES.botao
     end
+    if hitboxAtivo then
+        btnHitbox.Text = "💥 HITBOX 2D: ON"
+        btnHitbox.BackgroundColor3 = CORES.on
+    else
+        btnHitbox.Text = "💥 HITBOX 2D: OFF"
+        btnHitbox.BackgroundColor3 = CORES.botao
+    end
 
     statusLabel.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF") .. "\n"
-        .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF")
-    statusLabel.TextColor3 = (ativo or espAtivo) and CORES.on or CORES.textoFraco
+        .. (espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF") .. "\n"
+        .. (hitboxAtivo and "💥 Hitbox: ON" or "💥 Hitbox: OFF")
+    statusLabel.TextColor3 = (ativo or espAtivo or hitboxAtivo) and CORES.on or CORES.textoFraco
 
     infoBox.Visible = ativo
     if ativo and alvo then
@@ -714,6 +887,7 @@ end
 
 btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
+btnHitbox.MouseButton1Click:Connect(toggleHitbox)
 
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
@@ -722,6 +896,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
+    if input.KeyCode == Enum.KeyCode.T then toggleHitbox() return end
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
     if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
@@ -747,15 +922,22 @@ UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
+player.CharacterAdded:Connect(function(newChar)
+    task.wait(0.5)
+    if hitboxAtivo then criarHitboxVisual() end
+end)
+
 player.CharacterRemoving:Connect(function()
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
+    removerHitboxVisual()
 end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP + HITBOX 2D - " .. VERSAO)
 print("═══════════════════════════════════════════")
-print("🎮 Q = Lock | E = ESP")
+print("🎮 Q = Lock | E = ESP | T = Hitbox 2D")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("💥 Hitbox 2D: círculo azul visual (só pra ver)")
 print("═══════════════════════════════════════════")
