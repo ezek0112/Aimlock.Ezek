@@ -1,11 +1,12 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (ANTI-BUG)
---   🔒 Lock | 👁️ ESP | 🛡️ Anti-Bug
+--   EZEK LOCK + ESP - v3 REWORK (ANTI-BUG + CONTROLE)
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Bug | 🎮 R1+R2 Prioridade
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
 
 local VERSAO = "v3 REWORK"
@@ -463,6 +464,8 @@ local sg = Instance.new("ScreenGui")
 sg.Name = "EZEK_" .. VERSAO:gsub(" ", "_")
 sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
+sg.DisplayOrder = 999999
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = player:WaitForChild("PlayerGui")
 
 local tamW, tamH = 240, 440
@@ -706,6 +709,41 @@ closeBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
+-- 🎮 BOTÕES FLUTUANTES (por cima de tudo)
+local btnFlutuanteLock = Instance.new("TextButton")
+btnFlutuanteLock.Size = UDim2.new(0, 70, 0, 70)
+btnFlutuanteLock.Position = UDim2.new(0, 20, 0.5, -80)
+btnFlutuanteLock.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+btnFlutuanteLock.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFlutuanteLock.Font = Enum.Font.GothamBold
+btnFlutuanteLock.TextSize = 24
+btnFlutuanteLock.Text = "🔓"
+btnFlutuanteLock.ZIndex = 999999
+btnFlutuanteLock.Parent = sg
+Instance.new("UICorner", btnFlutuanteLock).CornerRadius = UDim.new(1, 0)
+Instance.new("UIStroke", btnFlutuanteLock).Thickness = 2
+
+local btnFlutuanteEsp = Instance.new("TextButton")
+btnFlutuanteEsp.Size = UDim2.new(0, 70, 0, 70)
+btnFlutuanteEsp.Position = UDim2.new(0, 20, 0.5, 0)
+btnFlutuanteEsp.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+btnFlutuanteEsp.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFlutuanteEsp.Font = Enum.Font.GothamBold
+btnFlutuanteEsp.TextSize = 24
+btnFlutuanteEsp.Text = "👁️"
+btnFlutuanteEsp.ZIndex = 999999
+btnFlutuanteEsp.Parent = sg
+Instance.new("UICorner", btnFlutuanteEsp).CornerRadius = UDim.new(1, 0)
+Instance.new("UIStroke", btnFlutuanteEsp).Thickness = 2
+
+btnFlutuanteLock.MouseButton1Click:Connect(function()
+    toggleLock()
+end)
+
+btnFlutuanteEsp.MouseButton1Click:Connect(function()
+    toggleESP()
+end)
+
 function atualizarBotoes()
     if ativo then
         btnLock.Text = "🔒 LOCK: ON"
@@ -735,51 +773,66 @@ function atualizarBotoes()
             infoLabel.Text = "🎯 Alvo: " .. alvo.Name
         end
     end
+
+    -- 🔥 Sincroniza botões flutuantes
+    btnFlutuanteLock.Text = ativo and "🔒" or "🔓"
+    btnFlutuanteLock.BackgroundColor3 = ativo and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(40, 40, 60)
+    btnFlutuanteEsp.BackgroundColor3 = espAtivo and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(40, 40, 60)
 end
 
 btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 
 -- ══════════════════════════════════════════════════
--- 🎮 CONTROLES (R1+R2 liberado)
+-- 🎮 CONTROLES COM PRIORIDADE MÁXIMA (ContextActionService)
 -- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
+local function processarBotao(nome, state)
+    if state == Enum.UserInputState.Begin then
+        if nome == "EZEK_R1" then r1 = true end
+        if nome == "EZEK_R2" then r2 = true end
+        if nome == "EZEK_L1" then l1 = true end
+        if nome == "EZEK_L2" then l2 = true end
+
+        if r1 and r2 then
+            local a = tick()
+            if a - ultLock > 0.8 then
+                toggleLock()
+                ultLock = a
+                r1 = false
+                r2 = false
+            end
+        end
+        if l1 and l2 then
+            local a = tick()
+            if a - ultEsp > 0.8 then
+                toggleESP()
+                ultEsp = a
+                l1 = false
+                l2 = false
+            end
+        end
+    elseif state == Enum.UserInputState.End then
+        if nome == "EZEK_R1" then r1 = false end
+        if nome == "EZEK_R2" then r2 = false end
+        if nome == "EZEK_L1" then l1 = false end
+        if nome == "EZEK_L2" then l2 = false end
+    end
+    return Enum.ContextActionResult.Sink
+end
+
+ContextActionService:BindActionAtPriority("EZEK_R1", processarBotao, false, 3000, Enum.KeyCode.ButtonR1)
+ContextActionService:BindActionAtPriority("EZEK_R2", processarBotao, false, 3000, Enum.KeyCode.ButtonR2)
+ContextActionService:BindActionAtPriority("EZEK_L1", processarBotao, false, 3000, Enum.KeyCode.ButtonL1)
+ContextActionService:BindActionAtPriority("EZEK_L2", processarBotao, false, 3000, Enum.KeyCode.ButtonL2)
+
+-- 🎹 Q e E via UserInputService
 UserInputService.InputBegan:Connect(function(input, gp)
-    -- 🔥 Permite controle mesmo com gameProcessed
-    local isControle = input.KeyCode == Enum.KeyCode.ButtonR1 
-        or input.KeyCode == Enum.KeyCode.ButtonR2
-        or input.KeyCode == Enum.KeyCode.ButtonL1 
-        or input.KeyCode == Enum.KeyCode.ButtonL2
-
-    if gp and not isControle then return end
-
+    if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
-    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
-    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
-    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
-    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
-    if r1 and r2 then
-        local a = tick()
-        if a - ultLock > 0.8 then
-            toggleLock(); ultLock = a; r1 = false; r2 = false
-        end
-    end
-    if l1 and l2 then
-        local a = tick()
-        if a - ultEsp > 0.8 then
-            toggleESP(); ultEsp = a; l1 = false; l2 = false
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = false end
-    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = false end
-    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = false end
-    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
 player.CharacterRemoving:Connect(function()
@@ -789,9 +842,9 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("🛡️ EZEK LOCK + ESP - " .. VERSAO .. " (ANTI-BUG)")
+print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
-print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🛡️ Anti-bug: shake, FOV, flash, knockback")
+print("🎮 R1+R2 = Lock | L1+L2 = ESP (prioridade máxima)")
+print("📱 Botões flutuantes na tela também funcionam")
 print("═══════════════════════════════════════════")
