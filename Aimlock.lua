@@ -1,28 +1,20 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 FINAL
---   🔒 Lock | 👁️ ESP | 📷 Câmera avançada | 🕹️ Zoom analógico
+--   EZEK LOCK + ESP - v3 REWORK
+--   🔒 Lock | 👁️ ESP (só na frente)
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v3 FINAL"
+local VERSAO = "v3 REWORK"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
-
--- 🕹️ ZOOM (analógico direito)
-local ZOOM = 13
-local ZOOM_PADRAO = 13
-
--- 🎥 Câmera
-local CAM_HEIGHT = 3.5
-local camAtual = nil
+local FOV_ESP = 60  -- 🔥 ângulo (só mostra quem tá na frente)
 
 local ativo = false
 local alvo = nil
@@ -30,6 +22,7 @@ local espAtivo = false
 local espHighlights = {}
 local espLabels = {}
 local hpBarAlvo = nil
+local camConn = nil
 local filtros = { players = true, dummies = true, monstros = true }
 
 -- DETECÇÃO DE VIDA
@@ -106,23 +99,7 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- CACHE
-local cacheAlvos = {}
-local cacheTempo = 0
-
 local function getTodos()
-    local agora = tick()
-    if agora - cacheTempo < 0.5 and #cacheAlvos > 0 then
-        local validos = {}
-        for _, m in ipairs(cacheAlvos) do
-            if m and m.Parent and temVida(m) then
-                table.insert(validos, m)
-            end
-        end
-        cacheAlvos = validos
-        return cacheAlvos
-    end
-
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and temVida(p.Character) then
@@ -133,7 +110,7 @@ local function getTodos()
         end
     end
     local function procurar(pasta, prof)
-        if prof > 3 then return end
+        if prof > 5 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
             if (obj:IsA("Model") or obj:IsA("BasePart")) and not vistos[obj] then
                 if obj ~= player.Character and temVida(obj) and pegarParte(obj) then
@@ -147,8 +124,6 @@ local function getTodos()
         end
     end
     procurar(workspace, 0)
-    cacheAlvos = lista
-    cacheTempo = agora
     return lista
 end
 
@@ -156,20 +131,12 @@ local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(35)
     local camPos = camera.CFrame.Position
     local camLook = camera.CFrame.LookVector
-
     for _, m in ipairs(getTodos()) do
         local parte = pegarParte(m)
         if parte then
-            local dir = parte.Position - camPos
-            local dist = dir.Magnitude
-            if dist > 0.1 then
-                local dirUnit = dir.Unit
-                local ang = math.acos(math.clamp(camLook:Dot(dirUnit), -1, 1))
-                if ang < melhorAng then
-                    melhorAng = ang
-                    melhor = m
-                end
-            end
+            local dir = (parte.Position - camPos).Unit
+            local ang = math.acos(math.clamp(camLook:Dot(dir), -1, 1))
+            if ang < melhorAng then melhorAng = ang; melhor = m end
         end
     end
     return melhor
@@ -257,9 +224,7 @@ local function atualizarHPBar()
     end
 end
 
--- ══════════════════════════════════════════════════
--- 🔥 CÂMERA (spring/damping + zoom analógico)
--- ══════════════════════════════════════════════════
+-- LOOP: CÂMERA CUSTOM
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -272,8 +237,11 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
+    if camera.CameraType ~= Enum.CameraType.Custom then
+        camera.CameraType = Enum.CameraType.Custom
+    end
+    if camera.CameraSubject ~= hum then
+        camera.CameraSubject = hum
     end
 
     local minhaPos = root.Position
@@ -284,25 +252,8 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    local dirCam = posAlvo - minhaPos
-    if dirCam.Magnitude < 0.1 then return end
-    dirCam = dirCam.Unit
-
-    local eyePos = minhaPos + Vector3.new(0, CAM_HEIGHT, 0)
-    local camPos = eyePos - dirCam * ZOOM
-
-    local cfDestino = CFrame.lookAt(camPos, posAlvo)
-
-    if not camAtual then camAtual = cfDestino end
-
-    local distReal = (posAlvo - minhaPos).Magnitude
-    local velocidade = math.clamp(1 - (distReal / 200), 0.08, 0.35)
-    local fator = 1 - math.exp(-velocidade * 60 * (1/60))
-
-    camAtual = camAtual:Lerp(cfDestino, fator)
-
-    camera.CFrame = camAtual
-    camera.Focus = CFrame.new(posAlvo)
+    local camPos = camera.CFrame.Position
+    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
 
     atualizarHPBar()
 end
@@ -313,17 +264,11 @@ function ligarLock()
     if not t then print("❌ Nenhum alvo") return end
     alvo = t
     ativo = true
-    camAtual = nil
     criarHPBar(t)
-
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.AutoRotate = false
-        hum.CameraOffset = Vector3.new(0, 0, 0)
-    end
-
-    RunService:UnbindFromRenderStep("EZEK_LOCK")
-    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 1, atualizar)
+    if hum then hum.AutoRotate = false end
+    if camConn then camConn:Disconnect() end
+    camConn = RunService.RenderStepped:Connect(atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
 end
 
@@ -331,16 +276,10 @@ function desligarLock()
     if not ativo then return end
     ativo = false
     alvo = nil
-    camAtual = nil
-
-    RunService:UnbindFromRenderStep("EZEK_LOCK")
-
+    if camConn then camConn:Disconnect() camConn = nil end
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.AutoRotate = true
-        hum.CameraOffset = Vector3.new(0, 0, 0)
-    end
+    if hum then hum.AutoRotate = true end
     pcall(function()
         camera.CameraType = Enum.CameraType.Custom
         if hum then camera.CameraSubject = hum end
@@ -405,6 +344,7 @@ local function limparESP()
     espLabels = {}
 end
 
+-- 🔥 ESP OTIMIZADO (só mostra quem tá na frente)
 local function atualizarESP()
     if not espAtivo then return end
 
@@ -413,23 +353,27 @@ local function atualizarESP()
     if not root then return end
     local minhaPos = root.Position
 
+    local camPos = camera.CFrame.Position
+    local camLook = camera.CFrame.LookVector
+    local fovRad = math.rad(FOV_ESP)
+
     local atuais = {}
     local todos = getTodos()
 
     for _, m in ipairs(todos) do
-        if filtros[getTipo(m)] then
-            atuais[m] = true
-            if not espHighlights[m] then criarESP(m) end
+        local parteAlvo = pegarParte(m)
+        if parteAlvo and filtros[getTipo(m)] then
+            local dist = (parteAlvo.Position - minhaPos).Magnitude
+            if dist <= MAX_DIST_ESP then
+                local dirAlvo = parteAlvo.Position - camPos
+                if dirAlvo.Magnitude > 0.1 then
+                    local dirUnit = dirAlvo.Unit
+                    local ang = math.acos(math.clamp(camLook:Dot(dirUnit), -1, 1))
 
-            local parteAlvo = pegarParte(m)
-            if parteAlvo then
-                local dist = (parteAlvo.Position - minhaPos).Magnitude
-                if dist > MAX_DIST_ESP then
-                    if espHighlights[m] and espHighlights[m].Parent then espHighlights[m]:Destroy() end
-                    espHighlights[m] = nil
-                    if espLabels[m] and espLabels[m].Parent then espLabels[m].Parent:Destroy() end
-                    espLabels[m] = nil
-                    atuais[m] = nil
+                    if ang <= fovRad then
+                        atuais[m] = true
+                        if not espHighlights[m] then criarESP(m) end
+                    end
                 end
             end
         end
@@ -500,7 +444,6 @@ local sg = Instance.new("ScreenGui")
 sg.Name = "EZEK_" .. VERSAO:gsub(" ", "_")
 sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
-sg.DisplayOrder = 999999
 sg.Parent = player:WaitForChild("PlayerGui")
 
 local tamW, tamH = 240, 440
@@ -512,7 +455,7 @@ main.Size = tamanhoNormal
 main.Position = UDim2.new(0, 20, 0, 60)
 main.BackgroundColor3 = CORES.fundo
 main.BorderSizePixel = 0
-main.Active = false
+main.Active = true
 main.ClipsDescendants = true
 main.Parent = sg
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
@@ -523,7 +466,6 @@ local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundColor3 = CORES.topo
 topBar.BorderSizePixel = 0
-topBar.Active = true
 topBar.Parent = main
 Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
 
@@ -531,7 +473,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 12, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🛡️ EZEK " .. VERSAO
+title.Text = "🎯 EZEK " .. VERSAO
 title.TextColor3 = CORES.texto
 title.Font = Enum.Font.GothamBold
 title.TextSize = 11
@@ -779,86 +721,36 @@ end
 btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 
--- ══════════════════════════════════════════════════
--- 🎮 CONTROLES (R1+R2 | L1+L2)
--- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
-local function processarBotao(nome, state)
-    if state == Enum.UserInputState.Begin then
-        if nome == "EZEK_R1" then r1 = true end
-        if nome == "EZEK_R2" then r2 = true end
-        if nome == "EZEK_L1" then l1 = true end
-        if nome == "EZEK_L2" then l2 = true end
-
-        if r1 and r2 then
-            local a = tick()
-            if a - ultLock > 0.8 then
-                toggleLock()
-                ultLock = a
-                r1 = false
-                r2 = false
-            end
-        end
-        if l1 and l2 then
-            local a = tick()
-            if a - ultEsp > 0.8 then
-                toggleESP()
-                ultEsp = a
-                l1 = false
-                l2 = false
-            end
-        end
-    elseif state == Enum.UserInputState.End then
-        if nome == "EZEK_R1" then r1 = false end
-        if nome == "EZEK_R2" then r2 = false end
-        if nome == "EZEK_L1" then l1 = false end
-        if nome == "EZEK_L2" then l2 = false end
-    end
-    return Enum.ContextActionResult.Pass
-end
-
-ContextActionService:BindActionAtPriority("EZEK_R1", processarBotao, false, 3000, Enum.KeyCode.ButtonR1)
-ContextActionService:BindActionAtPriority("EZEK_R2", processarBotao, false, 3000, Enum.KeyCode.ButtonR2)
-ContextActionService:BindActionAtPriority("EZEK_L1", processarBotao, false, 3000, Enum.KeyCode.ButtonL1)
-ContextActionService:BindActionAtPriority("EZEK_L2", processarBotao, false, 3000, Enum.KeyCode.ButtonL2)
-
--- 🕹️ ZOOM PELO ANALÓGICO DIREITO
-task.spawn(function()
-    while task.wait(0.05) do
-        if ativo then
-            pcall(function()
-                local gamepads = UserInputService:GetConnectedGamepads()
-                if #gamepads > 0 then
-                    local state = UserInputService:GetGamepadState(gamepads[1])
-                    for _, input in ipairs(state) do
-                        if input.KeyCode == Enum.KeyCode.Thumbstick2 then
-                            local y = input.Position.Y
-                            if math.abs(y) > 0.2 then
-                                ZOOM = math.clamp(ZOOM - y * 0.8, 3, 30)
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- 🔘 R3 = Reseta zoom
-ContextActionService:BindActionAtPriority("EZEK_R3", function(nome, state)
-    if state == Enum.UserInputState.Begin then
-        ZOOM = ZOOM_PADRAO
-    end
-    return Enum.ContextActionResult.Pass
-end, false, 3000, Enum.KeyCode.ButtonR3)
-
--- 🎹 Teclado Q/E
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
+    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
+    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
+    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
+    if r1 and r2 then
+        local a = tick()
+        if a - ultLock > 0.8 then
+            toggleLock(); ultLock = a; r1 = false; r2 = false
+        end
+    end
+    if l1 and l2 then
+        local a = tick()
+        if a - ultEsp > 0.8 then
+            toggleESP(); ultEsp = a; l1 = false; l2 = false
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = false end
+    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = false end
+    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = false end
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
 player.CharacterRemoving:Connect(function()
@@ -868,9 +760,9 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
+print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🕹️ Analógico Direito = Zoom | R3 = Reset")
-print("📷 Câmera avançada (spring/damping)")
+print("👁️ ESP otimizado (só mostra na frente)")
 print("═══════════════════════════════════════════")
