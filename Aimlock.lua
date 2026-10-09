@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (CÂMERA NATIVA)
---   🔒 Lock (R1+R2) | 👁️ ESP (L1+L2) | 📷 Câmera nativa
+--   EZEK LOCK + ESP - v3 REWORK (CÂMERA + ZOOM)
+--   🔒 Lock (R1+R2) | 👁️ ESP (L1+L2) | 📷 Câmera segue
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -250,7 +250,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: SÓ GIRA O CORPO (câmera nativa + zoom funciona)
+-- 🔥 LOOP: CÂMERA SEGUE + ZOOM NATIVO
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -269,7 +269,7 @@ local function atualizar()
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🔥 Só gira o CORPO pro alvo
+    -- 🔥 Gira o CORPO pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -278,13 +278,24 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 Câmera NATIVA (zoom normal funciona)
+    -- 🔥 CUSTOM (permite zoom nativo)
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
     if camera.CameraSubject ~= hum then
         camera.CameraSubject = hum
     end
+
+    -- 🔥 POSICIONA a câmera atrás olhando pro alvo
+    local dirCam = posAlvo - minhaPos
+    if dirCam.Magnitude < 0.1 then return end
+    dirCam = dirCam.Unit
+
+    local eyePos = minhaPos + Vector3.new(0, 3.5, 0)
+    local camPos = eyePos - dirCam * 13
+
+    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
+    camera.Focus = CFrame.new(posAlvo)
 
     -- 🛡️ Anti-knockback
     local vel = root.AssemblyLinearVelocity
@@ -827,5 +838,5 @@ print("════════════════════════�
 print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera NATIVA do Roblox (zoom normal)")
+print("📷 Câmera segue o alvo + Zoom nativo")
 print("═══════════════════════════════════════════")
