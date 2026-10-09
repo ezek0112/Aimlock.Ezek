@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK
---   🔒 Lock | 👁️ ESP (só na frente) | 🔥 Anti-bloqueio
+--   EZEK LOCK + ESP - v3 REWORK (BLINDADO)
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Animação de Boss
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -224,7 +224,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM
+-- LOOP: CÂMERA CUSTOM (BLINDADO)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -237,6 +237,12 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
+    -- 🛡️ ANTI-ANIMAÇÃO: reseta CameraOffset (shake de boss)
+    if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
+        hum.CameraOffset = Vector3.new(0, 0, 0)
+    end
+
+    -- 🛡️ ANTI-CUTSCENE: força Custom
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
@@ -252,6 +258,7 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
+    -- 🔥 MANTÉM ZOOM: só sobrescreve a direção
     local camPos = camera.CFrame.Position
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
 
@@ -267,8 +274,10 @@ function ligarLock()
     criarHPBar(t)
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
-    if camConn then camConn:Disconnect() end
-    camConn = RunService.RenderStepped:Connect(atualizar)
+
+    -- 🔥 Prioridade alta: roda DEPOIS das animações do boss
+    RunService:UnbindFromRenderStep("EZEK_LOCK")
+    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 100, atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
 end
 
@@ -276,6 +285,7 @@ function desligarLock()
     if not ativo then return end
     ativo = false
     alvo = nil
+    RunService:UnbindFromRenderStep("EZEK_LOCK")
     if camConn then camConn:Disconnect() camConn = nil end
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -344,7 +354,6 @@ local function limparESP()
     espLabels = {}
 end
 
--- ESP OTIMIZADO (só mostra quem tá na frente)
 local function atualizarESP()
     if not espAtivo then return end
 
@@ -725,7 +734,7 @@ btnEsp.MouseButton1Click:Connect(toggleESP)
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
--- 🔥 INPUT MELHORADO (funciona mesmo se o jogo bloquear)
+-- 🔥 INPUT ANTI-BLOQUEIO
 UserInputService.InputBegan:Connect(function(input, gp)
     local ehNosso = input.KeyCode == Enum.KeyCode.Q 
         or input.KeyCode == Enum.KeyCode.E
@@ -770,9 +779,10 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP - " .. VERSAO)
+print("⚡ EZEK LOCK + ESP - " .. VERSAO .. " (BLINDADO)")
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
-print("🎮 R1+R2 = Lock | L1+L2 = ESP (anti-bloqueio)")
-print("👁️ ESP otimizado (só mostra na frente)")
+print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("🛡️ Anti-animação de boss + Anti-bloqueio")
+print("🔍 Zoom nativo funciona")
 print("═══════════════════════════════════════════")
