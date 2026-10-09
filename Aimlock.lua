@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (CÂMERA + ZOOM)
---   🔒 Lock (R1+R2) | 👁️ ESP (L1+L2) | 📷 Câmera segue
+--   EZEK LOCK + ESP - v3 FINAL
+--   🔒 Lock | 👁️ ESP | 📷 Câmera avançada | 🕹️ Zoom analógico
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -9,12 +9,20 @@ local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v3 REWORK"
+local VERSAO = "v3 FINAL"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
+
+-- 🕹️ ZOOM (analógico direito)
+local ZOOM = 13
+local ZOOM_PADRAO = 13
+
+-- 🎥 Câmera
+local CAM_HEIGHT = 3.5
+local camAtual = nil
 
 local ativo = false
 local alvo = nil
@@ -250,7 +258,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: CÂMERA SEGUE + ZOOM NATIVO
+-- 🔥 CÂMERA (spring/damping + zoom analógico)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -264,12 +272,10 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ Zera CameraOffset (anti-shake)
-    if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
-        hum.CameraOffset = Vector3.new(0, 0, 0)
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
     end
 
-    -- 🔥 Gira o CORPO pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -278,30 +284,25 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 CUSTOM (permite zoom nativo)
-    if camera.CameraType ~= Enum.CameraType.Custom then
-        camera.CameraType = Enum.CameraType.Custom
-    end
-    if camera.CameraSubject ~= hum then
-        camera.CameraSubject = hum
-    end
-
-    -- 🔥 POSICIONA a câmera atrás olhando pro alvo
     local dirCam = posAlvo - minhaPos
     if dirCam.Magnitude < 0.1 then return end
     dirCam = dirCam.Unit
 
-    local eyePos = minhaPos + Vector3.new(0, 3.5, 0)
-    local camPos = eyePos - dirCam * 13
+    local eyePos = minhaPos + Vector3.new(0, CAM_HEIGHT, 0)
+    local camPos = eyePos - dirCam * ZOOM
 
-    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
+    local cfDestino = CFrame.lookAt(camPos, posAlvo)
+
+    if not camAtual then camAtual = cfDestino end
+
+    local distReal = (posAlvo - minhaPos).Magnitude
+    local velocidade = math.clamp(1 - (distReal / 200), 0.08, 0.35)
+    local fator = 1 - math.exp(-velocidade * 60 * (1/60))
+
+    camAtual = camAtual:Lerp(cfDestino, fator)
+
+    camera.CFrame = camAtual
     camera.Focus = CFrame.new(posAlvo)
-
-    -- 🛡️ Anti-knockback
-    local vel = root.AssemblyLinearVelocity
-    if vel.Magnitude > 200 then
-        root.AssemblyLinearVelocity = vel.Unit * 50
-    end
 
     atualizarHPBar()
 end
@@ -312,6 +313,7 @@ function ligarLock()
     if not t then print("❌ Nenhum alvo") return end
     alvo = t
     ativo = true
+    camAtual = nil
     criarHPBar(t)
 
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -329,6 +331,7 @@ function desligarLock()
     if not ativo then return end
     ativo = false
     alvo = nil
+    camAtual = nil
 
     RunService:UnbindFromRenderStep("EZEK_LOCK")
 
@@ -821,6 +824,36 @@ ContextActionService:BindActionAtPriority("EZEK_R2", processarBotao, false, 3000
 ContextActionService:BindActionAtPriority("EZEK_L1", processarBotao, false, 3000, Enum.KeyCode.ButtonL1)
 ContextActionService:BindActionAtPriority("EZEK_L2", processarBotao, false, 3000, Enum.KeyCode.ButtonL2)
 
+-- 🕹️ ZOOM PELO ANALÓGICO DIREITO
+task.spawn(function()
+    while task.wait(0.05) do
+        if ativo then
+            pcall(function()
+                local gamepads = UserInputService:GetConnectedGamepads()
+                if #gamepads > 0 then
+                    local state = UserInputService:GetGamepadState(gamepads[1])
+                    for _, input in ipairs(state) do
+                        if input.KeyCode == Enum.KeyCode.Thumbstick2 then
+                            local y = input.Position.Y
+                            if math.abs(y) > 0.2 then
+                                ZOOM = math.clamp(ZOOM - y * 0.8, 3, 30)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 🔘 R3 = Reseta zoom
+ContextActionService:BindActionAtPriority("EZEK_R3", function(nome, state)
+    if state == Enum.UserInputState.Begin then
+        ZOOM = ZOOM_PADRAO
+    end
+    return Enum.ContextActionResult.Pass
+end, false, 3000, Enum.KeyCode.ButtonR3)
+
 -- 🎹 Teclado Q/E
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
@@ -838,5 +871,6 @@ print("════════════════════════�
 print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("📷 Câmera segue o alvo + Zoom nativo")
+print("🕹️ Analógico Direito = Zoom | R3 = Reset")
+print("📷 Câmera avançada (spring/damping)")
 print("═══════════════════════════════════════════")
