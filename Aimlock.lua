@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (ANTI-BUG + CONTROLE)
---   🔒 Lock | 👁️ ESP | 🛡️ Anti-Bug | 🎮 R1+R2
+--   EZEK LOCK + ESP - v3 REWORK (ZOOM + CACHE)
+--   🔒 Lock | 👁️ ESP | 🎮 R1+R2 | 🔍 Zoom nativo
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -98,7 +98,23 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
+-- 🔥 CACHE DE ALVOS (evita travar)
+local cacheAlvos = {}
+local cacheTempo = 0
+
 local function getTodos()
+    local agora = tick()
+    if agora - cacheTempo < 0.5 and #cacheAlvos > 0 then
+        local validos = {}
+        for _, m in ipairs(cacheAlvos) do
+            if m and m.Parent and temVida(m) then
+                table.insert(validos, m)
+            end
+        end
+        cacheAlvos = validos
+        return cacheAlvos
+    end
+
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and temVida(p.Character) then
@@ -109,7 +125,7 @@ local function getTodos()
         end
     end
     local function procurar(pasta, prof)
-        if prof > 5 then return end
+        if prof > 3 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
             if (obj:IsA("Model") or obj:IsA("BasePart")) and not vistos[obj] then
                 if obj ~= player.Character and temVida(obj) and pegarParte(obj) then
@@ -123,19 +139,30 @@ local function getTodos()
         end
     end
     procurar(workspace, 0)
+    cacheAlvos = lista
+    cacheTempo = agora
     return lista
 end
 
+-- 🔥 MIRA PRECISA
 local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(35)
     local camPos = camera.CFrame.Position
     local camLook = camera.CFrame.LookVector
+
     for _, m in ipairs(getTodos()) do
         local parte = pegarParte(m)
         if parte then
-            local dir = (parte.Position - camPos).Unit
-            local ang = math.acos(math.clamp(camLook:Dot(dir), -1, 1))
-            if ang < melhorAng then melhorAng = ang; melhor = m end
+            local dir = parte.Position - camPos
+            local dist = dir.Magnitude
+            if dist > 0.1 then
+                local dirUnit = dir.Unit
+                local ang = math.acos(math.clamp(camLook:Dot(dirUnit), -1, 1))
+                if ang < melhorAng then
+                    melhorAng = ang
+                    melhor = m
+                end
+            end
         end
     end
     return melhor
@@ -223,7 +250,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP ANTI-BUG
+-- LOOP: CÂMERA CUSTOM (zoom nativo funciona)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -239,11 +266,13 @@ local function atualizar()
     if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
-    if math.abs(camera.FieldOfView - 70) > 0.5 then
-        camera.FieldOfView = 70
+
+    -- 🔥 CUSTOM (permite zoom nativo)
+    if camera.CameraType ~= Enum.CameraType.Custom then
+        camera.CameraType = Enum.CameraType.Custom
     end
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
+    if camera.CameraSubject ~= hum then
+        camera.CameraSubject = hum
     end
 
     local minhaPos = root.Position
@@ -306,7 +335,6 @@ function desligarLock()
     end
     pcall(function()
         camera.CameraType = Enum.CameraType.Custom
-        camera.FieldOfView = 70
         if hum then camera.CameraSubject = hum end
     end)
     print("🔓 Lock OFF")
@@ -805,6 +833,7 @@ print("════════════════════════�
 print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
-print("🎮 R1+R2 = Lock | L1+L2 = ESP (prioridade máxima)")
-print("🛡️ Anti-bug: shake, FOV, flash, knockback")
+print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("🔍 Zoom nativo funciona com lock ON (Custom)")
+print("🔥 Cache: alvos recalculados a cada 0.5s")
 print("═══════════════════════════════════════════")
