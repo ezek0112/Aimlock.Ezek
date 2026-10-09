@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (ZOOM + CACHE)
---   🔒 Lock | 👁️ ESP | 🎮 R1+R2 | 🔍 Zoom nativo
+--   EZEK LOCK + ESP - v3 REWORK (CÂMERA + ZOOM)
+--   🔒 Lock | 👁️ ESP | 🎮 R1+R2 | 🔍 Zoom custom
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -15,6 +15,7 @@ local camera = workspace.CurrentCamera
 
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
+local ZOOM = 13  -- 🔍 Distância da câmera (3 = perto, 30 = longe)
 
 local ativo = false
 local alvo = nil
@@ -98,7 +99,7 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- 🔥 CACHE DE ALVOS (evita travar)
+-- CACHE DE ALVOS
 local cacheAlvos = {}
 local cacheTempo = 0
 
@@ -144,7 +145,7 @@ local function getTodos()
     return lista
 end
 
--- 🔥 MIRA PRECISA
+-- MIRA PRECISA
 local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(35)
     local camPos = camera.CFrame.Position
@@ -250,7 +251,9 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM (zoom nativo funciona)
+-- ══════════════════════════════════════════════════
+-- 🔥 LOOP: CÂMERA + ZOOM CUSTOM
+-- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -263,18 +266,17 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
+    -- 🛡️ Zera CameraOffset
     if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🔥 CUSTOM (permite zoom nativo)
-    if camera.CameraType ~= Enum.CameraType.Custom then
-        camera.CameraType = Enum.CameraType.Custom
-    end
-    if camera.CameraSubject ~= hum then
-        camera.CameraSubject = hum
+    -- 🔥 Scriptable (script controla a câmera)
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
     end
 
+    -- 🔥 Gira corpo pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -283,16 +285,18 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
+    -- 🔥 Câmera atrás usando ZOOM (controlável por pinça/scroll)
     local dirCam = posAlvo - minhaPos
     if dirCam.Magnitude < 0.1 then return end
     dirCam = dirCam.Unit
 
     local eyePos = minhaPos + Vector3.new(0, 3.5, 0)
-    local camPos = eyePos - dirCam * 13
+    local camPos = eyePos - dirCam * ZOOM
 
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
     camera.Focus = CFrame.new(posAlvo)
 
+    -- 🛡️ Anti-knockback
     local vel = root.AssemblyLinearVelocity
     if vel.Magnitude > 200 then
         root.AssemblyLinearVelocity = vel.Unit * 50
@@ -772,7 +776,7 @@ btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 
 -- ══════════════════════════════════════════════════
--- 🎮 CONTROLES COM PRIORIDADE MÁXIMA
+-- 🎮 CONTROLES (R1+R2)
 -- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
@@ -816,11 +820,42 @@ ContextActionService:BindActionAtPriority("EZEK_R2", processarBotao, false, 3000
 ContextActionService:BindActionAtPriority("EZEK_L1", processarBotao, false, 3000, Enum.KeyCode.ButtonL1)
 ContextActionService:BindActionAtPriority("EZEK_L2", processarBotao, false, 3000, Enum.KeyCode.ButtonL2)
 
--- 🎹 Q e E via UserInputService
+-- 🎹 Q e E
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
+end)
+
+-- ══════════════════════════════════════════════════
+-- 🔍 ZOOM CUSTOM (pinça celular + scroll PC)
+-- ══════════════════════════════════════════════════
+UserInputService.InputChanged:Connect(function(input, gp)
+    if gp then return end
+    if not ativo then return end
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        ZOOM = math.clamp(ZOOM - input.Position.Z * 1.5, 3, 30)
+    end
+end)
+
+local toquesAtivos = {}
+UserInputService.TouchStarted:Connect(function(input)
+    toquesAtivos[input] = input.Position
+end)
+UserInputService.TouchEnded:Connect(function(input)
+    toquesAtivos[input] = nil
+end)
+UserInputService.TouchMoved:Connect(function(input)
+    if not ativo then return end
+    if not toquesAtivos[input] then return end
+    toquesAtivos[input] = input.Position
+
+    local total = 0
+    for _ in pairs(toquesAtivos) do total = total + 1 end
+
+    if total >= 2 then
+        ZOOM = math.clamp(ZOOM + input.Delta.Y * 0.15, 3, 30)
+    end
 end)
 
 player.CharacterRemoving:Connect(function()
@@ -834,6 +869,5 @@ print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🔍 Zoom nativo funciona com lock ON (Custom)")
-print("🔥 Cache: alvos recalculados a cada 0.5s")
+print("🔍 Zoom: pinça (celular) ou scroll (PC)")
 print("═══════════════════════════════════════════")
