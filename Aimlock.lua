@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP - v3 REWORK
---   🔒 Lock | 👁️ ESP (só na frente)
+--   🔒 Lock | 👁️ ESP (só na frente) | 🔥 Anti-bloqueio
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -14,7 +14,7 @@ local camera = workspace.CurrentCamera
 
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
-local FOV_ESP = 60  -- 🔥 ângulo (só mostra quem tá na frente)
+local FOV_ESP = 60
 
 local ativo = false
 local alvo = nil
@@ -344,7 +344,7 @@ local function limparESP()
     espLabels = {}
 end
 
--- 🔥 ESP OTIMIZADO (só mostra quem tá na frente)
+-- ESP OTIMIZADO (só mostra quem tá na frente)
 local function atualizarESP()
     if not espAtivo then return end
 
@@ -444,6 +444,7 @@ local sg = Instance.new("ScreenGui")
 sg.Name = "EZEK_" .. VERSAO:gsub(" ", "_")
 sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
+sg.DisplayOrder = 999999
 sg.Parent = player:WaitForChild("PlayerGui")
 
 local tamW, tamH = 240, 440
@@ -724,8 +725,17 @@ btnEsp.MouseButton1Click:Connect(toggleESP)
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
+-- 🔥 INPUT MELHORADO (funciona mesmo se o jogo bloquear)
 UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
+    local ehNosso = input.KeyCode == Enum.KeyCode.Q 
+        or input.KeyCode == Enum.KeyCode.E
+        or input.KeyCode == Enum.KeyCode.ButtonR1 
+        or input.KeyCode == Enum.KeyCode.ButtonR2
+        or input.KeyCode == Enum.KeyCode.ButtonL1 
+        or input.KeyCode == Enum.KeyCode.ButtonL2
+    
+    if gp and not ehNosso then return end
+    
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
@@ -763,6 +773,6 @@ print("════════════════════════�
 print("⚡ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
-print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("🎮 R1+R2 = Lock | L1+L2 = ESP (anti-bloqueio)")
 print("👁️ ESP otimizado (só mostra na frente)")
 print("═══════════════════════════════════════════")
