@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (CÂMERA + ZOOM)
---   🔒 Lock | 👁️ ESP | 🎮 R1+R2 | 🔍 Zoom custom
+--   EZEK LOCK + ESP - v3 REWORK (CÂMERA NATIVA)
+--   🔒 Lock (R1+R2) | 👁️ ESP (L1+L2) | 📷 Câmera nativa
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -15,7 +15,6 @@ local camera = workspace.CurrentCamera
 
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
-local ZOOM = 13  -- 🔍 Distância da câmera (3 = perto, 30 = longe)
 
 local ativo = false
 local alvo = nil
@@ -99,7 +98,7 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- CACHE DE ALVOS
+-- CACHE
 local cacheAlvos = {}
 local cacheTempo = 0
 
@@ -145,7 +144,6 @@ local function getTodos()
     return lista
 end
 
--- MIRA PRECISA
 local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(35)
     local camPos = camera.CFrame.Position
@@ -252,7 +250,7 @@ local function atualizarHPBar()
 end
 
 -- ══════════════════════════════════════════════════
--- 🔥 LOOP: CÂMERA + ZOOM CUSTOM
+-- 🔥 LOOP: SÓ GIRA O CORPO (câmera nativa + zoom funciona)
 -- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
@@ -266,17 +264,12 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ Zera CameraOffset
+    -- 🛡️ Zera CameraOffset (anti-shake)
     if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🔥 Scriptable (script controla a câmera)
-    if camera.CameraType ~= Enum.CameraType.Scriptable then
-        camera.CameraType = Enum.CameraType.Scriptable
-    end
-
-    -- 🔥 Gira corpo pro alvo
+    -- 🔥 Só gira o CORPO pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -285,16 +278,13 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 Câmera atrás usando ZOOM (controlável por pinça/scroll)
-    local dirCam = posAlvo - minhaPos
-    if dirCam.Magnitude < 0.1 then return end
-    dirCam = dirCam.Unit
-
-    local eyePos = minhaPos + Vector3.new(0, 3.5, 0)
-    local camPos = eyePos - dirCam * ZOOM
-
-    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
-    camera.Focus = CFrame.new(posAlvo)
+    -- 🔥 Câmera NATIVA (zoom normal funciona)
+    if camera.CameraType ~= Enum.CameraType.Custom then
+        camera.CameraType = Enum.CameraType.Custom
+    end
+    if camera.CameraSubject ~= hum then
+        camera.CameraSubject = hum
+    end
 
     -- 🛡️ Anti-knockback
     local vel = root.AssemblyLinearVelocity
@@ -497,7 +487,6 @@ sg.Name = "EZEK_" .. VERSAO:gsub(" ", "_")
 sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.DisplayOrder = 999999
-sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = player:WaitForChild("PlayerGui")
 
 local tamW, tamH = 240, 440
@@ -509,7 +498,7 @@ main.Size = tamanhoNormal
 main.Position = UDim2.new(0, 20, 0, 60)
 main.BackgroundColor3 = CORES.fundo
 main.BorderSizePixel = 0
-main.Active = true
+main.Active = false
 main.ClipsDescendants = true
 main.Parent = sg
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
@@ -520,6 +509,7 @@ local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundColor3 = CORES.topo
 topBar.BorderSizePixel = 0
+topBar.Active = true
 topBar.Parent = main
 Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
 
@@ -776,7 +766,7 @@ btnLock.MouseButton1Click:Connect(toggleLock)
 btnEsp.MouseButton1Click:Connect(toggleESP)
 
 -- ══════════════════════════════════════════════════
--- 🎮 CONTROLES (R1+R2)
+-- 🎮 CONTROLES (R1+R2 | L1+L2)
 -- ══════════════════════════════════════════════════
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
@@ -820,42 +810,11 @@ ContextActionService:BindActionAtPriority("EZEK_R2", processarBotao, false, 3000
 ContextActionService:BindActionAtPriority("EZEK_L1", processarBotao, false, 3000, Enum.KeyCode.ButtonL1)
 ContextActionService:BindActionAtPriority("EZEK_L2", processarBotao, false, 3000, Enum.KeyCode.ButtonL2)
 
--- 🎹 Q e E
+-- 🎹 Teclado Q/E
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then toggleLock() return end
     if input.KeyCode == Enum.KeyCode.E then toggleESP() return end
-end)
-
--- ══════════════════════════════════════════════════
--- 🔍 ZOOM CUSTOM (pinça celular + scroll PC)
--- ══════════════════════════════════════════════════
-UserInputService.InputChanged:Connect(function(input, gp)
-    if gp then return end
-    if not ativo then return end
-    if input.UserInputType == Enum.UserInputType.MouseWheel then
-        ZOOM = math.clamp(ZOOM - input.Position.Z * 1.5, 3, 30)
-    end
-end)
-
-local toquesAtivos = {}
-UserInputService.TouchStarted:Connect(function(input)
-    toquesAtivos[input] = input.Position
-end)
-UserInputService.TouchEnded:Connect(function(input)
-    toquesAtivos[input] = nil
-end)
-UserInputService.TouchMoved:Connect(function(input)
-    if not ativo then return end
-    if not toquesAtivos[input] then return end
-    toquesAtivos[input] = input.Position
-
-    local total = 0
-    for _ in pairs(toquesAtivos) do total = total + 1 end
-
-    if total >= 2 then
-        ZOOM = math.clamp(ZOOM + input.Delta.Y * 0.15, 3, 30)
-    end
 end)
 
 player.CharacterRemoving:Connect(function()
@@ -867,7 +826,6 @@ atualizarBotoes()
 print("═══════════════════════════════════════════")
 print("🛡️ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
-print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🔍 Zoom: pinça (celular) ou scroll (PC)")
+print("📷 Câmera NATIVA do Roblox (zoom normal)")
 print("═══════════════════════════════════════════")
