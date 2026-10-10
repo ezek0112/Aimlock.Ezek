@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v3 REWORK (BLINDADO)
---   🔒 Lock | 👁️ ESP | 🛡️ Anti-Boss Slayer 2
+--   EZEK LOCK + ESP - v5 (ESP OTIMIZADO)
+--   🔒 Lock | 👁️ ESP leve | 🛡️ Anti-Boss
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -8,13 +8,14 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSAO = "v3 REWORK"
+local VERSAO = "v5"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local MAX_DIST_ESP = 500
-local ESP_INTERVALO = 0.3
-local FOV_ESP = 60
+local MAX_DIST_ESP = 300
+local ESP_INTERVALO = 0.5
+local FOV_ESP = 50
+local MAX_ESP = 15
 
 local ativo = false
 local alvo = nil
@@ -99,6 +100,7 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
+-- 🔥 getTodos OTIMIZADO (só 3 níveis)
 local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -110,7 +112,7 @@ local function getTodos()
         end
     end
     local function procurar(pasta, prof)
-        if prof > 5 then return end
+        if prof > 3 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
             if (obj:IsA("Model") or obj:IsA("BasePart")) and not vistos[obj] then
                 if obj ~= player.Character and temVida(obj) and pegarParte(obj) then
@@ -224,7 +226,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM (BLINDADO CONTRA BOSS)
+-- LOOP: CÂMERA CUSTOM (SUAVE)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -237,22 +239,14 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ ANTI-1: FOV forçado (boss muda pra 50)
-    if math.abs(camera.FieldOfView - 70) > 1 then
-        camera.FieldOfView = 70
-    end
-
-    -- 🛡️ ANTI-2: CameraOffset zerado (shake)
     if hum.CameraOffset.Magnitude > 0.01 then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🛡️ ANTI-3: AutoRotate forçado false (boss reativa)
-    if hum.AutoRotate ~= false then
+    if hum.AutoRotate then
         hum.AutoRotate = false
     end
 
-    -- 🛡️ ANTI-4: CameraType Custom forçado
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
@@ -260,7 +254,6 @@ local function atualizar()
         camera.CameraSubject = hum
     end
 
-    -- 🛡️ ANTI-5: se tiver em GettingUp/Physics (derrubado), força rodar
     local estado = hum:GetState()
     if estado == Enum.HumanoidStateType.Physics 
        or estado == Enum.HumanoidStateType.GettingUp 
@@ -270,7 +263,6 @@ local function atualizar()
         end)
     end
 
-    -- Gira corpo pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -279,9 +271,9 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- Câmera (zoom continua funcionando)
     local camPos = camera.CFrame.Position
-    camera.CFrame = CFrame.lookAt(camPos, posAlvo)
+    local cfDesejada = CFrame.lookAt(camPos, posAlvo)
+    camera.CFrame = camera.CFrame:Lerp(cfDesejada, 0.25)
 
     atualizarHPBar()
 end
@@ -374,6 +366,7 @@ local function limparESP()
     espLabels = {}
 end
 
+-- 🔥 ESP OTIMIZADO (limite + sort por distância)
 local function atualizarESP()
     if not espAtivo then return end
 
@@ -388,8 +381,20 @@ local function atualizarESP()
 
     local atuais = {}
     local todos = getTodos()
+    local contador = 0
+
+    -- 🔥 Ordena por distância (mais perto primeiro)
+    table.sort(todos, function(a, b)
+        local pa = pegarParte(a)
+        local pb = pegarParte(b)
+        if not pa then return false end
+        if not pb then return true end
+        return (pa.Position - minhaPos).Magnitude < (pb.Position - minhaPos).Magnitude
+    end)
 
     for _, m in ipairs(todos) do
+        if contador >= MAX_ESP then break end
+
         local parteAlvo = pegarParte(m)
         if parteAlvo and filtros[getTipo(m)] then
             local dist = (parteAlvo.Position - minhaPos).Magnitude
@@ -401,6 +406,7 @@ local function atualizarESP()
 
                     if ang <= fovRad then
                         atuais[m] = true
+                        contador = contador + 1
                         if not espHighlights[m] then criarESP(m) end
                     end
                 end
@@ -798,10 +804,9 @@ end)
 
 atualizarBotoes()
 print("═══════════════════════════════════════════")
-print("⚡ EZEK LOCK + ESP - " .. VERSAO .. " (BLINDADO)")
+print("⚡ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🛡️ Anti-Boss Slayer 2 (FOV/AutoRotate/State)")
-print("🔍 Zoom nativo funciona")
+print("👁️ ESP OTIMIZADO (max " .. MAX_ESP .. " alvos)")
 print("═══════════════════════════════════════════")
