@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP - v5
---   🔒 Lock | 👁️ ESP | 🛡️ Anti-Boss | 📷 Câmera Suave
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Boss | 📷 Sem Tremor
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -223,7 +223,9 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM + ANTI-BOSS + SUAVE
+-- ══════════════════════════════════════════════════
+-- 🔥 LOOP: CÂMERA + ANTI-BOSS (SEM TREMOR)
+-- ══════════════════════════════════════════════════
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -236,22 +238,19 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ ANTI-BOSS: shake
+    -- 🛡️ ANTI-BOSS
     if hum.CameraOffset.Magnitude > 0.01 then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
-    -- 🛡️ ANTI-BOSS: AutoRotate
     if hum.AutoRotate then
         hum.AutoRotate = false
     end
-    -- 🛡️ ANTI-BOSS: CameraType
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
     if camera.CameraSubject ~= hum then
         camera.CameraSubject = hum
     end
-    -- 🛡️ ANTI-BOSS: queda
     local estado = hum:GetState()
     if estado == Enum.HumanoidStateType.Physics 
        or estado == Enum.HumanoidStateType.GettingUp 
@@ -261,7 +260,7 @@ local function atualizar()
         end)
     end
 
-    -- Gira corpo pro alvo
+    -- 🔥 GIRA CORPO (direto)
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -270,10 +269,16 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 📷 CÂMERA SUAVE (Lerp em vez de forçar direto)
+    -- 🔥 SÓ ATUALIZA CÂMERA SE DIFERENÇA > 1.5°
     local camPos = camera.CFrame.Position
     local cfDesejada = CFrame.lookAt(camPos, posAlvo)
-    camera.CFrame = camera.CFrame:Lerp(cfDesejada, 0.3)
+    local dirAtual = camera.CFrame.LookVector
+    local dirDesejada = cfDesejada.LookVector
+    local angDiff = math.acos(math.clamp(dirAtual:Dot(dirDesejada), -1, 1))
+    
+    if angDiff > math.rad(1.5) then
+        camera.CFrame = cfDesejada
+    end
 
     atualizarHPBar()
 end
@@ -788,5 +793,5 @@ print("⚡ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🛡️ Anti-Boss + Câmera Suave")
+print("🛡️ Anti-Boss + Sem Tremor")
 print("═══════════════════════════════════════════")
