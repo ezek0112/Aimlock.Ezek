@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v5 (ESP OTIMIZADO + CORRIGIDO)
---   🔒 Lock | 👁️ ESP leve | 🛡️ Anti-Boss
+--   EZEK LOCK + ESP - v5
+--   🔒 Lock | 👁️ ESP (otimizado)
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -12,10 +12,10 @@ local VERSAO = "v5"
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local MAX_DIST_ESP = 300
-local ESP_INTERVALO = 0.5
-local FOV_ESP = 50
-local MAX_ESP = 15
+local MAX_DIST_ESP = 500
+local ESP_INTERVALO = 0.3
+local FOV_ESP = 60
+local MAX_ESP = 20
 
 local ativo = false
 local alvo = nil
@@ -100,7 +100,7 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- 🔥 getTodos (depth 5 - acha tudo)
+-- getTodos ORIGINAL (como funcionava)
 local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -112,7 +112,7 @@ local function getTodos()
         end
     end
     local function procurar(pasta, prof)
-        if prof > 5 then return end  -- 🔥 CORRIGIDO (era 3)
+        if prof > 5 then return end
         for _, obj in ipairs(pasta:GetChildren()) do
             if (obj:IsA("Model") or obj:IsA("BasePart")) and not vistos[obj] then
                 if obj ~= player.Character and temVida(obj) and pegarParte(obj) then
@@ -226,7 +226,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM (SUAVE)
+-- LOOP: CÂMERA CUSTOM
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -242,11 +242,9 @@ local function atualizar()
     if hum.CameraOffset.Magnitude > 0.01 then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
-
     if hum.AutoRotate then
         hum.AutoRotate = false
     end
-
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
@@ -366,7 +364,7 @@ local function limparESP()
     espLabels = {}
 end
 
--- 🔥 ESP OTIMIZADO (limite + sort por distância)
+-- ESP OTIMIZADO (só o que fazia travar)
 local function atualizarESP()
     if not espAtivo then return end
 
@@ -383,6 +381,7 @@ local function atualizarESP()
     local todos = getTodos()
     local contador = 0
 
+    -- Ordena por distância
     table.sort(todos, function(a, b)
         local pa = pegarParte(a)
         local pb = pegarParte(b)
@@ -807,5 +806,4 @@ print("⚡ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("👁️ ESP OTIMIZADO (max " .. MAX_ESP .. " alvos)")
 print("═══════════════════════════════════════════")
