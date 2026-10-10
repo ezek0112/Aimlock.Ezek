@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP - v3 REWORK (BLINDADO)
---   🔒 Lock | 👁️ ESP | 🛡️ Anti-Animação de Boss
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Boss Slayer 2
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -224,7 +224,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM (BLINDADO)
+-- LOOP: CÂMERA CUSTOM (BLINDADO CONTRA BOSS)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -237,12 +237,22 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ ANTI-ANIMAÇÃO: reseta CameraOffset (shake de boss)
-    if hum.CameraOffset ~= Vector3.new(0, 0, 0) then
+    -- 🛡️ ANTI-1: FOV forçado (boss muda pra 50)
+    if math.abs(camera.FieldOfView - 70) > 1 then
+        camera.FieldOfView = 70
+    end
+
+    -- 🛡️ ANTI-2: CameraOffset zerado (shake)
+    if hum.CameraOffset.Magnitude > 0.01 then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
 
-    -- 🛡️ ANTI-CUTSCENE: força Custom
+    -- 🛡️ ANTI-3: AutoRotate forçado false (boss reativa)
+    if hum.AutoRotate ~= false then
+        hum.AutoRotate = false
+    end
+
+    -- 🛡️ ANTI-4: CameraType Custom forçado
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
@@ -250,6 +260,17 @@ local function atualizar()
         camera.CameraSubject = hum
     end
 
+    -- 🛡️ ANTI-5: se tiver em GettingUp/Physics (derrubado), força rodar
+    local estado = hum:GetState()
+    if estado == Enum.HumanoidStateType.Physics 
+       or estado == Enum.HumanoidStateType.GettingUp 
+       or estado == Enum.HumanoidStateType.FallingDown then
+        pcall(function()
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+
+    -- Gira corpo pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -258,7 +279,7 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
-    -- 🔥 MANTÉM ZOOM: só sobrescreve a direção
+    -- Câmera (zoom continua funcionando)
     local camPos = camera.CFrame.Position
     camera.CFrame = CFrame.lookAt(camPos, posAlvo)
 
@@ -275,7 +296,6 @@ function ligarLock()
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
 
-    -- 🔥 Prioridade alta: roda DEPOIS das animações do boss
     RunService:UnbindFromRenderStep("EZEK_LOCK")
     RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 100, atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
@@ -734,7 +754,6 @@ btnEsp.MouseButton1Click:Connect(toggleESP)
 local r1, r2, l1, l2 = false, false, false, false
 local ultLock, ultEsp = 0, 0
 
--- 🔥 INPUT ANTI-BLOQUEIO
 UserInputService.InputBegan:Connect(function(input, gp)
     local ehNosso = input.KeyCode == Enum.KeyCode.Q 
         or input.KeyCode == Enum.KeyCode.E
@@ -783,6 +802,6 @@ print("⚡ EZEK LOCK + ESP - " .. VERSAO .. " (BLINDADO)")
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
-print("🛡️ Anti-animação de boss + Anti-bloqueio")
+print("🛡️ Anti-Boss Slayer 2 (FOV/AutoRotate/State)")
 print("🔍 Zoom nativo funciona")
 print("═══════════════════════════════════════════")
