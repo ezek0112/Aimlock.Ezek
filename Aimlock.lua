@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════
---   EZEK LOCK + ESP - v5 (ESP OTIMIZADO)
+--   EZEK LOCK + ESP - v5 (ESP OTIMIZADO + CORRIGIDO)
 --   🔒 Lock | 👁️ ESP leve | 🛡️ Anti-Boss
 -- ══════════════════════════════════════════════════════════
 
@@ -100,7 +100,7 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- 🔥 getTodos OTIMIZADO (só 3 níveis)
+-- 🔥 getTodos (depth 5 - acha tudo)
 local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -112,7 +112,7 @@ local function getTodos()
         end
     end
     local function procurar(pasta, prof)
-        if prof > 3 then return end
+        if prof > 5 then return end  -- 🔥 CORRIGIDO (era 3)
         for _, obj in ipairs(pasta:GetChildren()) do
             if (obj:IsA("Model") or obj:IsA("BasePart")) and not vistos[obj] then
                 if obj ~= player.Character and temVida(obj) and pegarParte(obj) then
@@ -383,7 +383,6 @@ local function atualizarESP()
     local todos = getTodos()
     local contador = 0
 
-    -- 🔥 Ordena por distância (mais perto primeiro)
     table.sort(todos, function(a, b)
         local pa = pegarParte(a)
         local pb = pegarParte(b)
