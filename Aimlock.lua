@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════
 --   EZEK LOCK + ESP - v5
---   🔒 Lock | 👁️ ESP (otimizado)
+--   🔒 Lock | 👁️ ESP | 🛡️ Anti-Boss | 📷 Câmera Suave
 -- ══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -14,8 +14,6 @@ local camera = workspace.CurrentCamera
 
 local MAX_DIST_ESP = 500
 local ESP_INTERVALO = 0.3
-local FOV_ESP = 60
-local MAX_ESP = 20
 
 local ativo = false
 local alvo = nil
@@ -100,7 +98,6 @@ local function pegarPeito(m)
         or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
--- getTodos ORIGINAL (como funcionava)
 local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -226,7 +223,7 @@ local function atualizarHPBar()
     end
 end
 
--- LOOP: CÂMERA CUSTOM
+-- LOOP: CÂMERA CUSTOM + ANTI-BOSS + SUAVE
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local char = player.Character
@@ -239,19 +236,22 @@ local function atualizar()
     if not parteAlvo then return end
     if not temVida(alvo) then desligarLock() return end
 
+    -- 🛡️ ANTI-BOSS: shake
     if hum.CameraOffset.Magnitude > 0.01 then
         hum.CameraOffset = Vector3.new(0, 0, 0)
     end
+    -- 🛡️ ANTI-BOSS: AutoRotate
     if hum.AutoRotate then
         hum.AutoRotate = false
     end
+    -- 🛡️ ANTI-BOSS: CameraType
     if camera.CameraType ~= Enum.CameraType.Custom then
         camera.CameraType = Enum.CameraType.Custom
     end
     if camera.CameraSubject ~= hum then
         camera.CameraSubject = hum
     end
-
+    -- 🛡️ ANTI-BOSS: queda
     local estado = hum:GetState()
     if estado == Enum.HumanoidStateType.Physics 
        or estado == Enum.HumanoidStateType.GettingUp 
@@ -261,6 +261,7 @@ local function atualizar()
         end)
     end
 
+    -- Gira corpo pro alvo
     local minhaPos = root.Position
     local posAlvo = parteAlvo.Position
     local dir = posAlvo - minhaPos
@@ -269,9 +270,10 @@ local function atualizar()
         root.CFrame = CFrame.new(minhaPos, minhaPos + flat.Unit)
     end
 
+    -- 📷 CÂMERA SUAVE (Lerp em vez de forçar direto)
     local camPos = camera.CFrame.Position
     local cfDesejada = CFrame.lookAt(camPos, posAlvo)
-    camera.CFrame = camera.CFrame:Lerp(cfDesejada, 0.25)
+    camera.CFrame = camera.CFrame:Lerp(cfDesejada, 0.3)
 
     atualizarHPBar()
 end
@@ -285,9 +287,8 @@ function ligarLock()
     criarHPBar(t)
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.AutoRotate = false end
-
-    RunService:UnbindFromRenderStep("EZEK_LOCK")
-    RunService:BindToRenderStep("EZEK_LOCK", Enum.RenderPriority.Camera.Value + 100, atualizar)
+    if camConn then camConn:Disconnect() end
+    camConn = RunService.RenderStepped:Connect(atualizar)
     print("🔒 Lock ON: " .. alvo.Name)
 end
 
@@ -295,7 +296,6 @@ function desligarLock()
     if not ativo then return end
     ativo = false
     alvo = nil
-    RunService:UnbindFromRenderStep("EZEK_LOCK")
     if camConn then camConn:Disconnect() camConn = nil end
     if hpBarAlvo then hpBarAlvo:Destroy(); hpBarAlvo = nil end
     local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -364,7 +364,6 @@ local function limparESP()
     espLabels = {}
 end
 
--- ESP OTIMIZADO (só o que fazia travar)
 local function atualizarESP()
     if not espAtivo then return end
 
@@ -373,40 +372,23 @@ local function atualizarESP()
     if not root then return end
     local minhaPos = root.Position
 
-    local camPos = camera.CFrame.Position
-    local camLook = camera.CFrame.LookVector
-    local fovRad = math.rad(FOV_ESP)
-
     local atuais = {}
     local todos = getTodos()
-    local contador = 0
-
-    -- Ordena por distância
-    table.sort(todos, function(a, b)
-        local pa = pegarParte(a)
-        local pb = pegarParte(b)
-        if not pa then return false end
-        if not pb then return true end
-        return (pa.Position - minhaPos).Magnitude < (pb.Position - minhaPos).Magnitude
-    end)
 
     for _, m in ipairs(todos) do
-        if contador >= MAX_ESP then break end
+        if filtros[getTipo(m)] then
+            atuais[m] = true
+            if not espHighlights[m] then criarESP(m) end
 
-        local parteAlvo = pegarParte(m)
-        if parteAlvo and filtros[getTipo(m)] then
-            local dist = (parteAlvo.Position - minhaPos).Magnitude
-            if dist <= MAX_DIST_ESP then
-                local dirAlvo = parteAlvo.Position - camPos
-                if dirAlvo.Magnitude > 0.1 then
-                    local dirUnit = dirAlvo.Unit
-                    local ang = math.acos(math.clamp(camLook:Dot(dirUnit), -1, 1))
-
-                    if ang <= fovRad then
-                        atuais[m] = true
-                        contador = contador + 1
-                        if not espHighlights[m] then criarESP(m) end
-                    end
+            local parteAlvo = pegarParte(m)
+            if parteAlvo then
+                local dist = (parteAlvo.Position - minhaPos).Magnitude
+                if dist > MAX_DIST_ESP then
+                    if espHighlights[m] and espHighlights[m].Parent then espHighlights[m]:Destroy() end
+                    espHighlights[m] = nil
+                    if espLabels[m] and espLabels[m].Parent then espLabels[m].Parent:Destroy() end
+                    espLabels[m] = nil
+                    atuais[m] = nil
                 end
             end
         end
@@ -806,4 +788,5 @@ print("⚡ EZEK LOCK + ESP - " .. VERSAO)
 print("═══════════════════════════════════════════")
 print("🎮 Q = Lock | E = ESP")
 print("🎮 R1+R2 = Lock | L1+L2 = ESP")
+print("🛡️ Anti-Boss + Câmera Suave")
 print("═══════════════════════════════════════════")
