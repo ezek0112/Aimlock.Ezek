@@ -1,4 +1,4 @@
--- EZEK v5 - ESP 2D em tempo real + Lock sem tremor
+-- EZEK v5 - ESP 2D tempo real + Lock sem tremor
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -195,7 +195,7 @@ local function updateHPBar()
     end
 end
 
--- LOOP LOCK (SEM TREMOR)
+-- LOOP LOCK
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local c = player.Character
@@ -226,16 +226,8 @@ local function atualizar()
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
 
-    -- 🔥 CÂMERA: só atualiza se diferença > 1.5° (sem tremor)
-    local camPos = camera.CFrame.Position
-    local cfDesejada = CFrame.lookAt(camPos, p.Position)
-    local dirAtual = camera.CFrame.LookVector
-    local dirDesejada = cfDesejada.LookVector
-    local angDiff = math.acos(math.clamp(dirAtual:Dot(dirDesejada), -1, 1))
-    
-    if angDiff > math.rad(1.5) then
-        camera.CFrame = cfDesejada
-    end
+    -- Câmera (sem tremor)
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, p.Position)
 
     updateHPBar()
 end
@@ -248,14 +240,16 @@ function ligarLock()
     criarHPBar(t)
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if h then h.AutoRotate = false end
-    if camConn then camConn:Disconnect() end
-    camConn = RunService.RenderStepped:Connect(atualizar)
+    -- 🔥 BindToRenderStep com prioridade DEPOIS da câmera (sem tremor)
+    RunService:UnbindFromRenderStep("EZEK_CAM")
+    RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizar)
     print("🔒 Lock ON: "..t.Name)
 end
 
 function desligarLock()
     if not ativo then return end
     ativo = false; alvo = nil
+    RunService:UnbindFromRenderStep("EZEK_CAM")
     if camConn then camConn:Disconnect(); camConn = nil end
     if hpBar then hpBar:Destroy(); hpBar = nil end
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
