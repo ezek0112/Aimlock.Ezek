@@ -1,4 +1,4 @@
--- EZEK v5 - ESP 2D + LOCK
+-- EZEK v5 - ESP 2D em tempo real + Lock sem tremor
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -7,12 +7,13 @@ local camera = workspace.CurrentCamera
 
 local VERSAO = "v5"
 local MAX_DIST = 400
-local INTERVALO = 0.25
+local INTERVALO_LISTA = 1
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar, camConn = nil, nil
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
+local alvosESP = {}
 local cache, cacheT = {}, 0
 
 -- VIDA
@@ -194,7 +195,7 @@ local function updateHPBar()
     end
 end
 
--- LOOP LOCK
+-- LOOP LOCK (SEM TREMOR)
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local c = player.Character
@@ -206,19 +207,36 @@ local function atualizar()
     if not p then return end
     if not temVida(alvo) then desligarLock() return end
 
+    -- 🛡️ ANTI-BOSS
     if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
     if h.AutoRotate then h.AutoRotate = false end
+    if h.PlatformStand then h.PlatformStand = false end
+    if h.WalkSpeed < 16 then h.WalkSpeed = 16 end
+    if h.JumpPower < 50 then h.JumpPower = 50 end
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
+    
     local est = h:GetState()
     if est == Enum.HumanoidStateType.Physics or est == Enum.HumanoidStateType.GettingUp or est == Enum.HumanoidStateType.FallingDown then
         pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
     end
 
+    -- Gira corpo
     local dir = p.Position - r.Position
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
-    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, p.Position)
+
+    -- 🔥 CÂMERA: só atualiza se diferença > 1.5° (sem tremor)
+    local camPos = camera.CFrame.Position
+    local cfDesejada = CFrame.lookAt(camPos, p.Position)
+    local dirAtual = camera.CFrame.LookVector
+    local dirDesejada = cfDesejada.LookVector
+    local angDiff = math.acos(math.clamp(dirAtual:Dot(dirDesejada), -1, 1))
+    
+    if angDiff > math.rad(1.5) then
+        camera.CFrame = cfDesejada
+    end
+
     updateHPBar()
 end
 
@@ -247,7 +265,7 @@ end
 
 function toggleLock() if ativo then desligarLock() else ligarLock() end; attBts() end
 
--- ESP 2D
+-- ESP 2D TEMPO REAL
 local espGui = Instance.new("ScreenGui")
 espGui.Name = "EZEK_ESP2D_"..VERSAO
 espGui.ResetOnSpawn = false
@@ -297,7 +315,31 @@ local function limparESP()
     espEl = {}
 end
 
-local function atualizarESP()
+local function atualizarListaESP()
+    local lista = {}
+    for _, m in ipairs(getTodos()) do
+        if filtros[getTipo(m)] then
+            local parte = pegarParte(m)
+            if parte then table.insert(lista, {model = m, parte = parte}) end
+        end
+    end
+    alvosESP = lista
+    for _, t in ipairs(alvosESP) do
+        if not espEl[t.model] then criarESP(t.model) end
+    end
+    for m, d in pairs(espEl) do
+        local achou = false
+        for _, t in ipairs(alvosESP) do
+            if t.model == m then achou = true break end
+        end
+        if not achou or not m.Parent then
+            if d.cont and d.cont.Parent then d.cont:Destroy() end
+            espEl[m] = nil
+        end
+    end
+end
+
+local function desenharESP()
     if not espAtivo then return end
     local c = player.Character
     local r = c and c:FindFirstChild("HumanoidRootPart")
@@ -305,72 +347,72 @@ local function atualizarESP()
     local mp = r.Position
     local cam = workspace.CurrentCamera
     if not cam then return end
-    local atuais = {}
-    for _, m in ipairs(getTodos()) do
-        if filtros[getTipo(m)] then
-            local parte = pegarParte(m)
-            if parte then
-                local dist = (parte.Position - mp).Magnitude
-                if dist <= MAX_DIST then
-                    atuais[m] = true
-                    if not espEl[m] then criarESP(m) end
-                    local pos = parte.Position
-                    local t = cam:WorldToViewportPoint(pos + Vector3.new(0,2.5,0))
-                    local b = cam:WorldToViewportPoint(pos - Vector3.new(0,2.5,0))
-                    local d = espEl[m]
-                    if t.Z > 0 and b.Z > 0 then
-                        local alt = math.abs(t.Y - b.Y)
-                        if alt > 5 then
-                            local lar = alt * 0.55
-                            local cx = (t.X + b.X) / 2
-                            local cy = (t.Y + b.Y) / 2
-                            d.cont.Visible = true
-                            d.box.Size = UDim2.new(0, lar, 0, alt)
-                            d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
-                            d.nm.Size = UDim2.new(0, 150, 0, 16)
-                            d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 18)
-                            d.hp.Size = UDim2.new(0, 150, 0, 14)
-                            d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
-                            local hp, mx = getVida(m)
-                            if hp and hp > 0 then
-                                mx = mx or 100
-                                local pct = hp/mx
-                                d.hp.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx), math.floor(dist))
-                                d.hp.TextColor3 = pct>0.6 and Color3.fromRGB(0,255,0) or (pct>0.3 and Color3.fromRGB(255,220,0) or Color3.fromRGB(255,80,80))
-                            else
-                                d.hp.Text = math.floor(dist).."m"
-                            end
+
+    for _, t in ipairs(alvosESP) do
+        local m = t.model
+        local parte = t.parte
+        if m.Parent and parte and parte.Parent then
+            local dist = (parte.Position - mp).Magnitude
+            local d = espEl[m]
+            if d and dist <= MAX_DIST then
+                local pos = parte.Position
+                local top = cam:WorldToViewportPoint(pos + Vector3.new(0,2.5,0))
+                local bot = cam:WorldToViewportPoint(pos - Vector3.new(0,2.5,0))
+                if top.Z > 0 and bot.Z > 0 then
+                    local alt = math.abs(top.Y - bot.Y)
+                    if alt > 5 then
+                        local lar = alt * 0.55
+                        local cx = (top.X + bot.X) / 2
+                        local cy = (top.Y + bot.Y) / 2
+                        d.cont.Visible = true
+                        d.box.Size = UDim2.new(0, lar, 0, alt)
+                        d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
+                        d.nm.Size = UDim2.new(0, 150, 0, 16)
+                        d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 18)
+                        d.hp.Size = UDim2.new(0, 150, 0, 14)
+                        d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
+                        local hp, mx = getVida(m)
+                        if hp and hp > 0 then
+                            mx = mx or 100
+                            local pct = hp/mx
+                            d.hp.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx), math.floor(dist))
+                            d.hp.TextColor3 = pct>0.6 and Color3.fromRGB(0,255,0) or (pct>0.3 and Color3.fromRGB(255,220,0) or Color3.fromRGB(255,80,80))
                         else
-                            d.cont.Visible = false
+                            d.hp.Text = math.floor(dist).."m"
                         end
                     else
                         d.cont.Visible = false
                     end
+                else
+                    d.cont.Visible = false
                 end
+            elseif d then
+                d.cont.Visible = false
             end
-        end
-    end
-    for m, d in pairs(espEl) do
-        if not atuais[m] or not m.Parent then
-            if d.cont and d.cont.Parent then d.cont:Destroy() end
-            espEl[m] = nil
         end
     end
 end
 
-local espTh = nil
+local espListTh = nil
+local espDrawConn = nil
 
 function toggleESP()
     espAtivo = not espAtivo
     if espAtivo then
-        for _, m in ipairs(getTodos()) do if filtros[getTipo(m)] then criarESP(m) end end
-        espTh = task.spawn(function()
-            while espAtivo do pcall(atualizarESP); task.wait(INTERVALO) end
+        atualizarListaESP()
+        espListTh = task.spawn(function()
+            while espAtivo do
+                pcall(atualizarListaESP)
+                task.wait(INTERVALO_LISTA)
+            end
         end)
+        espDrawConn = RunService.RenderStepped:Connect(desenharESP)
         print("👁️ ESP 2D ON")
     else
-        espTh = nil
+        espListTh = nil
+        if espDrawConn then espDrawConn:Disconnect() espDrawConn = nil end
         limparESP()
+        alvosESP = {}
         print("👁️ ESP 2D OFF")
     end
     attBts()
@@ -514,7 +556,7 @@ local function mkCheck(txt, chave, y)
         filtros[chave] = not filtros[chave]
         box.BackgroundColor3 = filtros[chave] and CORES.cOn or CORES.cOff
         box.Text = filtros[chave] and "✓" or ""
-        if espAtivo then limparESP(); for _,m in ipairs(getTodos()) do if filtros[getTipo(m)] then criarESP(m) end end end
+        if espAtivo then limparESP(); alvosESP={}; atualizarListaESP() end
     end
     box.MouseButton1Click:Connect(tg)
     lb.InputBegan:Connect(function(i)
@@ -640,4 +682,4 @@ player.CharacterRemoving:Connect(function()
 end)
 
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Q=Lock E=ESP | R1+R2=L Lock L1+L2=ESP")
+print("⚡ EZEK "..VERSAO.." carregado! | Q=Lock E=ESP | R1+R2=Lock L1+L2=ESP")
