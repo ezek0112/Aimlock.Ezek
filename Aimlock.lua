@@ -112,17 +112,26 @@ local function getTodos()
     return lista
 end
 
+-- 🔥 ALVO: pega o MAIS PERTO que tá na frente
 local function acharAlvo()
-    local melhor, melhorAng = nil, math.rad(35)
+    local melhor, melhorDist = nil, math.huge
     local cp = camera.CFrame.Position
     local cl = camera.CFrame.LookVector
+    local fovRad = math.rad(35)
+    
     for _, m in ipairs(getTodos()) do
         if filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
             if parte then
                 local dir = (parte.Position - cp).Unit
                 local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
-                if ang < melhorAng then melhorAng = ang; melhor = m end
+                if ang < fovRad then
+                    local dist = (parte.Position - cp).Magnitude
+                    if dist < melhorDist then
+                        melhorDist = dist
+                        melhor = m
+                    end
+                end
             end
         end
     end
@@ -207,7 +216,6 @@ local function atualizar()
     if not p then return end
     if not temVida(alvo) then desligarLock() return end
 
-    -- 🛡️ ANTI-BOSS
     if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
     if h.AutoRotate then h.AutoRotate = false end
     if h.PlatformStand then h.PlatformStand = false end
@@ -221,12 +229,10 @@ local function atualizar()
         pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
     end
 
-    -- Gira corpo
     local dir = p.Position - r.Position
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
 
-    -- Câmera (sem tremor)
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, p.Position)
 
     updateHPBar()
@@ -240,7 +246,6 @@ function ligarLock()
     criarHPBar(t)
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if h then h.AutoRotate = false end
-    -- 🔥 BindToRenderStep com prioridade DEPOIS da câmera (sem tremor)
     RunService:UnbindFromRenderStep("EZEK_CAM")
     RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizar)
     print("🔒 Lock ON: "..t.Name)
@@ -259,7 +264,7 @@ end
 
 function toggleLock() if ativo then desligarLock() else ligarLock() end; attBts() end
 
--- ESP 2D TEMPO REAL
+-- ESP 2D
 local espGui = Instance.new("ScreenGui")
 espGui.Name = "EZEK_ESP2D_"..VERSAO
 espGui.ResetOnSpawn = false
