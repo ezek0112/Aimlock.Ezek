@@ -85,6 +85,7 @@ local function getTipo(m)
     return "objetos"
 end
 
+-- 🔥 getTodos (filtro de mortos aplicado)
 local function getTodos()
     local t = tick()
     if t - cacheT < 0.5 and #cache > 0 then
@@ -96,14 +97,29 @@ local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character.Parent then
-            if not vistos[p.Character] then table.insert(lista,p.Character); vistos[p.Character]=true end
+            -- 🔥 Só adiciona player VIVO
+            if temVida(p.Character) then
+                if not vistos[p.Character] then 
+                    table.insert(lista,p.Character); vistos[p.Character]=true 
+                end
+            end
         end
     end
     local function proc(pasta, prof)
         if prof > 6 then return end
         for _, o in ipairs(pasta:GetChildren()) do
             if o:IsA("Model") and not vistos[o] and o ~= player.Character and temInteracao(o) and pegarParte(o) then
-                table.insert(lista,o); vistos[o]=true
+                local temHum = o:FindFirstChildOfClass("Humanoid") or o:FindFirstChildWhichIsA("Humanoid",true)
+                local temHp = getVida(o)
+                if temHum or temHp then
+                    -- 🔥 Ser vivo → só adiciona se tiver HP > 0
+                    if temVida(o) then
+                        table.insert(lista,o); vistos[o]=true
+                    end
+                else
+                    -- 🔥 Objeto/baú → adiciona sempre
+                    table.insert(lista,o); vistos[o]=true
+                end
             end
             if o:IsA("Folder") or o:IsA("Model") then proc(o, prof+1) end
         end
@@ -238,7 +254,6 @@ end
 
 function ligarLock()
     if ativo then return end
-    -- 🔥 Usa o alvo que já tá em preview (verde)
     local t = alvoPreview or acharAlvo()
     if not t then print("❌ Sem alvo") return end
     alvo = t; ativo = true
@@ -349,7 +364,14 @@ local function desenharESP()
     for _, t in ipairs(alvosESP) do
         local m = t.model
         local parte = t.parte
-        if m.Parent and parte and parte.Parent then
+        -- 🔥 CORPO MORTO: esconde se for ser vivo sem vida
+        local temHum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
+        local corpoMorto = temHum and not temVida(m)
+        
+        if corpoMorto then
+            local d = espEl[m]
+            if d then d.cont.Visible = false end
+        elseif m.Parent and parte and parte.Parent then
             local dist = (parte.Position - mp).Magnitude
             local d = espEl[m]
             if d and dist <= MAX_DIST then
@@ -416,11 +438,8 @@ function toggleESP()
     attBts()
 end
 
--- ══════════════════════════════════════════════════
 -- 🔥 PREVIEW DE ALVO (verde grosso antes de ativar)
--- ══════════════════════════════════════════════════
 local function atualizarPreview()
-    -- Se tá lockado, não precisa de preview
     if ativo then
         if alvoPreview then
             local d = espEl[alvoPreview]
@@ -437,9 +456,7 @@ local function atualizarPreview()
     
     local t = acharAlvo()
     
-    -- Se mudou de alvo
     if t ~= alvoPreview then
-        -- Limpa o antigo
         if alvoPreview then
             local d = espEl[alvoPreview]
             if d and d.st then
@@ -452,10 +469,8 @@ local function atualizarPreview()
         
         alvoPreview = t
         
-        -- Cria ESP se não tem
         if t and not espEl[t] then criarESP(t) end
         
-        -- Marca o novo de verde
         if t and espEl[t] and espEl[t].st then
             espEl[t].st.Color = Color3.fromRGB(0, 255, 0)
             espEl[t].st.Thickness = 3
@@ -463,7 +478,6 @@ local function atualizarPreview()
         end
     end
     
-    -- Se ESP tá off, desenha SÓ o preview
     if not espAtivo and alvoPreview then
         local cam = workspace.CurrentCamera
         local char = player.Character
@@ -498,7 +512,6 @@ local function atualizarPreview()
             end
         end
     else
-        -- ESP on, mostra labels do preview
         if alvoPreview and espEl[alvoPreview] then
             espEl[alvoPreview].nm.Visible = true
             espEl[alvoPreview].hp.Visible = true
