@@ -112,12 +112,11 @@ local function getTodos()
     return lista
 end
 
--- 🔥 ALVO: pega o MAIS PERTO que tá na frente
+-- 🔥 ALVO: quem tá NA MIRA da câmera
 local function acharAlvo()
-    local melhor, melhorDist = nil, math.huge
+    local melhor, melhorAng = nil, math.rad(35)
     local cp = camera.CFrame.Position
     local cl = camera.CFrame.LookVector
-    local fovRad = math.rad(35)
     
     for _, m in ipairs(getTodos()) do
         if filtros[getTipo(m)] and temVida(m) then
@@ -125,12 +124,9 @@ local function acharAlvo()
             if parte then
                 local dir = (parte.Position - cp).Unit
                 local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
-                if ang < fovRad then
-                    local dist = (parte.Position - cp).Magnitude
-                    if dist < melhorDist then
-                        melhorDist = dist
-                        melhor = m
-                    end
+                if ang < melhorAng then
+                    melhorAng = ang
+                    melhor = m
                 end
             end
         end
