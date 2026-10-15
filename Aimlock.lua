@@ -1,4 +1,4 @@
--- EZEK v5 - ESP 2D tempo real + Lock sem tremor
+-- EZEK v5 - ESP 2D + Lock com FOV visual
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -8,6 +8,7 @@ local camera = workspace.CurrentCamera
 local VERSAO = "v5"
 local MAX_DIST = 400
 local INTERVALO_LISTA = 1
+local FOV_GRAUS = 30
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar, camConn = nil, nil
@@ -112,9 +113,9 @@ local function getTodos()
     return lista
 end
 
--- 🔥 ALVO: quem tá NA MIRA da câmera
+-- 🔥 ALVO: quem tá NA MIRA + log
 local function acharAlvo()
-    local melhor, melhorAng = nil, math.rad(35)
+    local melhor, melhorAng = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
     local cl = camera.CFrame.LookVector
     
@@ -130,6 +131,11 @@ local function acharAlvo()
                 end
             end
         end
+    end
+    if melhor then
+        print(string.format("🎯 Alvo: %s | Ângulo: %.1f°", melhor.Name, math.deg(melhorAng)))
+    else
+        print("❌ Nenhum alvo no FOV (" .. FOV_GRAUS .. "°)")
     end
     return melhor
 end
@@ -413,6 +419,50 @@ function toggleESP()
     attBts()
 end
 
+-- 🔥 FOV VISUAL + MIRA
+local fovGui = Instance.new("ScreenGui")
+fovGui.Name = "EZEK_FOV"
+fovGui.ResetOnSpawn = false
+fovGui.IgnoreGuiInset = true
+fovGui.DisplayOrder = 999997
+fovGui.Parent = player:WaitForChild("PlayerGui")
+
+local fovCirculo = Instance.new("Frame", fovGui)
+fovCirculo.AnchorPoint = Vector2.new(0.5, 0.5)
+fovCirculo.Position = UDim2.new(0.5, 0, 0.5, 0)
+fovCirculo.BackgroundTransparency = 1
+fovCirculo.BorderSizePixel = 0
+fovCirculo.Visible = false
+local fovStroke = Instance.new("UIStroke", fovCirculo)
+fovStroke.Color = Color3.fromRGB(0, 200, 100)
+fovStroke.Thickness = 1.5
+fovStroke.Transparency = 0.4
+Instance.new("UICorner", fovCirculo).CornerRadius = UDim.new(1, 0)
+
+local mira = Instance.new("Frame", fovGui)
+mira.AnchorPoint = Vector2.new(0.5, 0.5)
+mira.Position = UDim2.new(0.5, 0, 0.5, 0)
+mira.Size = UDim2.new(0, 6, 0, 6)
+mira.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+mira.BorderSizePixel = 0
+mira.Visible = false
+Instance.new("UICorner", mira).CornerRadius = UDim.new(1, 0)
+local miraStroke = Instance.new("UIStroke", mira)
+miraStroke.Color = Color3.fromRGB(0, 0, 0)
+miraStroke.Thickness = 1.5
+
+RunService.RenderStepped:Connect(function()
+    fovCirculo.Visible = ativo
+    mira.Visible = ativo
+    if not ativo then return end
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    local vp = cam.ViewportSize
+    local raioPx = math.tan(math.rad(FOV_GRAUS)) * vp.Y
+    local tam = math.clamp(raioPx * 1.6, 100, 900)
+    fovCirculo.Size = UDim2.new(0, tam, 0, tam)
+end)
+
 -- GUI
 local CORES = {
     fundo=Color3.fromRGB(20,20,25), topo=Color3.fromRGB(30,30,40),
@@ -677,4 +727,4 @@ player.CharacterRemoving:Connect(function()
 end)
 
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Q=Lock E=ESP | R1+R2=Lock L1+L2=ESP")
+print("⚡ EZEK "..VERSAO.." carregado! | FOV: "..FOV_GRAUS.."°")
