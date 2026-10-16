@@ -1,4 +1,4 @@
--- EZEK v5 - ESP 2D + Preview de Alvo (Preview Independente)
+-- EZEK v5 - ESP 2D + Preview de Alvo (CORRIGIDO)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -20,6 +20,7 @@ local cache, cacheT = {}, 0
 -- 🔥 Variáveis do preview independente
 local previewEl = nil
 local previewAlvo = nil
+local limparPreview -- 🔥 forward declaration (resolve o bug do lock)
 
 -- VIDA
 local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth"}
@@ -88,7 +89,6 @@ local function getTipo(m)
     return "objetos"
 end
 
--- 🔥 getTodos (filtro de mortos aplicado)
 local function getTodos()
     local t = tick()
     if t - cacheT < 0.5 and #cache > 0 then
@@ -130,7 +130,6 @@ local function getTodos()
     return lista
 end
 
--- 🔥 ALVO: quem tá NA MIRA (menor ângulo)
 local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
@@ -439,7 +438,7 @@ function toggleESP()
 end
 
 -- 🔥 PREVIEW INDEPENDENTE (funciona com ESP desligado, sem resquício)
-local function limparPreview()
+function limparPreview()
     if previewEl then
         if previewEl.cont and previewEl.cont.Parent then
             previewEl.cont:Destroy()
