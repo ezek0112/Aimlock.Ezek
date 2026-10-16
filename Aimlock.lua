@@ -1,4 +1,4 @@
--- EZEK v5 - ESP 2D + Preview de Alvo
+-- EZEK v5 - ESP 2D + Preview de Alvo (CORRIGIDO)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -97,7 +97,6 @@ local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character.Parent then
-            -- 🔥 Só adiciona player VIVO
             if temVida(p.Character) then
                 if not vistos[p.Character] then 
                     table.insert(lista,p.Character); vistos[p.Character]=true 
@@ -112,12 +111,10 @@ local function getTodos()
                 local temHum = o:FindFirstChildOfClass("Humanoid") or o:FindFirstChildWhichIsA("Humanoid",true)
                 local temHp = getVida(o)
                 if temHum or temHp then
-                    -- 🔥 Ser vivo → só adiciona se tiver HP > 0
                     if temVida(o) then
                         table.insert(lista,o); vistos[o]=true
                     end
                 else
-                    -- 🔥 Objeto/baú → adiciona sempre
                     table.insert(lista,o); vistos[o]=true
                 end
             end
@@ -364,7 +361,6 @@ local function desenharESP()
     for _, t in ipairs(alvosESP) do
         local m = t.model
         local parte = t.parte
-        -- 🔥 CORPO MORTO: esconde se for ser vivo sem vida
         local temHum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
         local corpoMorto = temHum and not temVida(m)
         
@@ -438,17 +434,23 @@ function toggleESP()
     attBts()
 end
 
--- 🔥 PREVIEW DE ALVO (verde grosso antes de ativar)
+-- 🔥 PREVIEW DE ALVO (verde grosso antes de ativar) - CORRIGIDO
+local function resetarPreview(m)
+    if not m then return end
+    local d = espEl[m]
+    if d and d.st then
+        local c = cor(getTipo(m))
+        d.st.Color = c
+        d.st.Thickness = 1.5
+        d.st.Transparency = 0.2
+        d.cont.Visible = false -- 🔥 esconde a caixa do preview antigo
+    end
+end
+
 local function atualizarPreview()
     if ativo then
         if alvoPreview then
-            local d = espEl[alvoPreview]
-            if d and d.st then
-                local c = cor(getTipo(alvoPreview))
-                d.st.Color = c
-                d.st.Thickness = 1.5
-                d.st.Transparency = 0.2
-            end
+            resetarPreview(alvoPreview)
             alvoPreview = nil
         end
         return
@@ -458,27 +460,24 @@ local function atualizarPreview()
     
     if t ~= alvoPreview then
         if alvoPreview then
-            local d = espEl[alvoPreview]
-            if d and d.st then
-                local c = cor(getTipo(alvoPreview))
-                d.st.Color = c
-                d.st.Thickness = 1.5
-                d.st.Transparency = 0.2
-            end
+            resetarPreview(alvoPreview)
         end
         
         alvoPreview = t
         
-        if t and not espEl[t] then criarESP(t) end
-        
-        if t and espEl[t] and espEl[t].st then
-            espEl[t].st.Color = Color3.fromRGB(0, 255, 0)
-            espEl[t].st.Thickness = 3
-            espEl[t].st.Transparency = 0
+        -- 🔥 Só cria ESP do preview se o ESP estiver ligado
+        if t and espAtivo then
+            if not espEl[t] then criarESP(t) end
+            if espEl[t] and espEl[t].st then
+                espEl[t].st.Color = Color3.fromRGB(0, 255, 0)
+                espEl[t].st.Thickness = 3
+                espEl[t].st.Transparency = 0
+            end
         end
     end
     
-    if not espAtivo and alvoPreview then
+    -- 🔥 Só desenha o preview se o ESP estiver ligado
+    if espAtivo and alvoPreview and espEl[alvoPreview] then
         local cam = workspace.CurrentCamera
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -508,14 +507,15 @@ local function atualizarPreview()
                     else
                         d.cont.Visible = false
                     end
+                else
+                    if d then d.cont.Visible = false end
                 end
             end
         end
-    else
-        if alvoPreview and espEl[alvoPreview] then
-            espEl[alvoPreview].nm.Visible = true
-            espEl[alvoPreview].hp.Visible = true
-        end
+    elseif alvoPreview and espEl[alvoPreview] then
+        espEl[alvoPreview].cont.Visible = false
+        espEl[alvoPreview].nm.Visible = true
+        espEl[alvoPreview].hp.Visible = true
     end
 end
 
