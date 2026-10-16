@@ -1,4 +1,4 @@
--- EZEK v5 - ESP 2D + Preview de Alvo (CORRIGIDO)
+-- EZEK v5 - ESP 2D + Preview de Alvo (Preview Independente)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -16,7 +16,10 @@ local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
 local alvosESP = {}
 local cache, cacheT = {}, 0
-local alvoPreview = nil
+
+-- 🔥 Variáveis do preview independente
+local previewEl = nil
+local previewAlvo = nil
 
 -- VIDA
 local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth"}
@@ -251,8 +254,9 @@ end
 
 function ligarLock()
     if ativo then return end
-    local t = alvoPreview or acharAlvo()
+    local t = previewAlvo or acharAlvo()
     if not t then print("❌ Sem alvo") return end
+    limparPreview() -- 🔥 limpa preview ao ligar lock
     alvo = t; ativo = true
     criarHPBar(t)
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -434,59 +438,60 @@ function toggleESP()
     attBts()
 end
 
--- 🔥 PREVIEW DE ALVO (verde grosso antes de ativar) - CORRIGIDO
-local function resetarPreview(m)
-    if not m then return end
-    local d = espEl[m]
-    if d and d.st then
-        local c = cor(getTipo(m))
-        d.st.Color = c
-        d.st.Thickness = 1.5
-        d.st.Transparency = 0.2
-        d.cont.Visible = false -- 🔥 esconde a caixa do preview antigo
+-- 🔥 PREVIEW INDEPENDENTE (funciona com ESP desligado, sem resquício)
+local function limparPreview()
+    if previewEl then
+        if previewEl.cont and previewEl.cont.Parent then
+            previewEl.cont:Destroy()
+        end
+        previewEl = nil
     end
+    previewAlvo = nil
+end
+
+local function criarPreview(m)
+    limparPreview()
+    if not m or not m.Parent then return end
+    local cont = Instance.new("Frame", espGui)
+    cont.BackgroundTransparency = 1
+    cont.BorderSizePixel = 0
+    cont.Visible = false
+    local box = Instance.new("Frame", cont)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    local st = Instance.new("UIStroke", box)
+    st.Color = Color3.fromRGB(0, 255, 0)
+    st.Thickness = 3
+    st.Transparency = 0
+    previewEl = {cont = cont, box = box, st = st}
+    previewAlvo = m
 end
 
 local function atualizarPreview()
     if ativo then
-        if alvoPreview then
-            resetarPreview(alvoPreview)
-            alvoPreview = nil
-        end
+        limparPreview()
         return
     end
     
     local t = acharAlvo()
     
-    if t ~= alvoPreview then
-        if alvoPreview then
-            resetarPreview(alvoPreview)
-        end
-        
-        alvoPreview = t
-        
-        -- 🔥 Só cria ESP do preview se o ESP estiver ligado
-        if t and espAtivo then
-            if not espEl[t] then criarESP(t) end
-            if espEl[t] and espEl[t].st then
-                espEl[t].st.Color = Color3.fromRGB(0, 255, 0)
-                espEl[t].st.Thickness = 3
-                espEl[t].st.Transparency = 0
-            end
+    if t ~= previewAlvo then
+        if t then
+            criarPreview(t)
+        else
+            limparPreview()
         end
     end
     
-    -- 🔥 Só desenha o preview se o ESP estiver ligado
-    if espAtivo and alvoPreview and espEl[alvoPreview] then
+    if previewEl and previewAlvo and previewAlvo.Parent then
         local cam = workspace.CurrentCamera
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
-        if cam and root and alvoPreview.Parent then
-            local parte = pegarParte(alvoPreview)
+        if cam and root then
+            local parte = pegarParte(previewAlvo)
             if parte then
                 local dist = (parte.Position - root.Position).Magnitude
-                local d = espEl[alvoPreview]
-                if d and dist <= MAX_DIST then
+                if dist <= MAX_DIST then
                     local pos = parte.Position
                     local top = cam:WorldToViewportPoint(pos + Vector3.new(0,2.5,0))
                     local bot = cam:WorldToViewportPoint(pos - Vector3.new(0,2.5,0))
@@ -496,26 +501,20 @@ local function atualizarPreview()
                             local lar = alt * 0.55
                             local cx = (top.X + bot.X) / 2
                             local cy = (top.Y + bot.Y) / 2
-                            d.cont.Visible = true
-                            d.box.Size = UDim2.new(0, lar, 0, alt)
-                            d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
-                            d.nm.Visible = false
-                            d.hp.Visible = false
+                            previewEl.cont.Visible = true
+                            previewEl.box.Size = UDim2.new(0, lar, 0, alt)
+                            previewEl.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
                         else
-                            d.cont.Visible = false
+                            previewEl.cont.Visible = false
                         end
                     else
-                        d.cont.Visible = false
+                        previewEl.cont.Visible = false
                     end
                 else
-                    if d then d.cont.Visible = false end
+                    previewEl.cont.Visible = false
                 end
             end
         end
-    elseif alvoPreview and espEl[alvoPreview] then
-        espEl[alvoPreview].cont.Visible = false
-        espEl[alvoPreview].nm.Visible = true
-        espEl[alvoPreview].hp.Visible = true
     end
 end
 
@@ -784,6 +783,7 @@ end)
 player.CharacterRemoving:Connect(function()
     if ativo then desligarLock() end
     if espAtivo then toggleESP() end
+    limparPreview()
 end)
 
 attBts()
