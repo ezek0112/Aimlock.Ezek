@@ -1,28 +1,27 @@
--- EZEK v5 - ESP 2D + Preview de Alvo (CORRIGIDO)
+-- EZEK v6 - ESP 2D + Preview (LIMPO E FUNCIONAL)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local VERSAO = "v5"
+local VERSAO = "v6"
 local MAX_DIST = 400
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 30
 
 local ativo, alvo, espAtivo = false, nil, false
-local hpBar, camConn = nil, nil
+local hpBar = nil
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
 local alvosESP = {}
 local cache, cacheT = {}, 0
 
--- 🔥 Variáveis do preview independente
+-- 🔥 Variáveis do preview
 local previewEl = nil
 local previewAlvo = nil
-local limparPreview -- 🔥 forward declaration (resolve o bug do lock)
 
--- VIDA
+-- ===================== VIDA / UTIL =====================
 local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth"}
 local NM = {"MaxHealth","MaxHP","maxhealth","MaxHp","HPMAX","VidaMaxima","MaxVida","TotalHealth","MaxLife"}
 
@@ -100,10 +99,8 @@ local function getTodos()
     local lista, vistos = {}, {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character.Parent then
-            if temVida(p.Character) then
-                if not vistos[p.Character] then 
-                    table.insert(lista,p.Character); vistos[p.Character]=true 
-                end
+            if temVida(p.Character) and not vistos[p.Character] then 
+                table.insert(lista,p.Character); vistos[p.Character]=true 
             end
         end
     end
@@ -114,9 +111,7 @@ local function getTodos()
                 local temHum = o:FindFirstChildOfClass("Humanoid") or o:FindFirstChildWhichIsA("Humanoid",true)
                 local temHp = getVida(o)
                 if temHum or temHp then
-                    if temVida(o) then
-                        table.insert(lista,o); vistos[o]=true
-                    end
+                    if temVida(o) then table.insert(lista,o); vistos[o]=true end
                 else
                     table.insert(lista,o); vistos[o]=true
                 end
@@ -134,7 +129,6 @@ local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
     local cl = camera.CFrame.LookVector
-    
     for _, m in ipairs(getTodos()) do
         if filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
@@ -151,7 +145,16 @@ local function acharAlvo()
     return melhor
 end
 
--- HP BAR
+-- ===================== PREVIEW (definido ANTES do lock) =====================
+local function limparPreview()
+    if previewEl and previewEl.cont and previewEl.cont.Parent then
+        previewEl.cont:Destroy()
+    end
+    previewEl = nil
+    previewAlvo = nil
+end
+
+-- ===================== HP BAR =====================
 local function criarHPBar(m)
     if hpBar and hpBar.Parent then hpBar:Destroy() end
     local root = pegarParte(m)
@@ -217,7 +220,7 @@ local function updateHPBar()
     end
 end
 
--- LOOP LOCK
+-- ===================== LOCK =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent then return end
     local c = player.Character
@@ -227,7 +230,12 @@ local function atualizar()
     if not r or not h or h.Health <= 0 then return end
     local p = pegarParte(alvo)
     if not p then return end
-    if not temVida(alvo) then desligarLock() return end
+    if not temVida(alvo) then
+        ativo = false; alvo = nil
+        RunService:UnbindFromRenderStep("EZEK_CAM")
+        if hpBar then hpBar:Destroy(); hpBar = nil end
+        return
+    end
 
     if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
     if h.AutoRotate then h.AutoRotate = false end
@@ -236,7 +244,7 @@ local function atualizar()
     if h.JumpPower < 50 then h.JumpPower = 50 end
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
-    
+
     local est = h:GetState()
     if est == Enum.HumanoidStateType.Physics or est == Enum.HumanoidStateType.GettingUp or est == Enum.HumanoidStateType.FallingDown then
         pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
@@ -247,16 +255,18 @@ local function atualizar()
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
 
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, p.Position)
-
     updateHPBar()
 end
 
-function ligarLock()
+local function ligarLock()
     if ativo then return end
-    local t = previewAlvo or acharAlvo()
-    if not t then print("❌ Sem alvo") return end
-    limparPreview() -- 🔥 limpa preview ao ligar lock
-    alvo = t; ativo = true
+    local t = previewAlvo
+    if not t or not t.Parent then t = acharAlvo() end
+    if not t then print("❌ Sem alvo na mira") return end
+    
+    limparPreview() -- limpa a caixa verde
+    alvo = t
+    ativo = true
     criarHPBar(t)
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if h then h.AutoRotate = false end
@@ -265,22 +275,24 @@ function ligarLock()
     print("🔒 Lock ON: "..t.Name)
 end
 
-function desligarLock()
+local function desligarLock()
     if not ativo then return end
-    ativo = false; alvo = nil
+    ativo = false
+    alvo = nil
     RunService:UnbindFromRenderStep("EZEK_CAM")
-    if camConn then camConn:Disconnect(); camConn = nil end
     if hpBar then hpBar:Destroy(); hpBar = nil end
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if h then h.AutoRotate = true end
-    pcall(function() camera.CameraType = Enum.CameraType.Custom; if h then camera.CameraSubject = h end end)
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Custom
+        if h then camera.CameraSubject = h end
+    end)
+    print("🔓 Lock OFF")
 end
 
-function toggleLock() if ativo then desligarLock() else ligarLock() end; attBts() end
-
--- ESP 2D
+-- ===================== ESP =====================
 local espGui = Instance.new("ScreenGui")
-espGui.Name = "EZEK_ESP2D_"..VERSAO
+espGui.Name = "EZEK_ESP_"..VERSAO
 espGui.ResetOnSpawn = false
 espGui.IgnoreGuiInset = true
 espGui.DisplayOrder = 999998
@@ -366,38 +378,40 @@ local function desenharESP()
         local parte = t.parte
         local temHum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
         local corpoMorto = temHum and not temVida(m)
-        
-        if corpoMorto then
-            local d = espEl[m]
-            if d then d.cont.Visible = false end
-        elseif m.Parent and parte and parte.Parent then
-            local dist = (parte.Position - mp).Magnitude
-            local d = espEl[m]
-            if d and dist <= MAX_DIST then
-                local pos = parte.Position
-                local top = cam:WorldToViewportPoint(pos + Vector3.new(0,2.5,0))
-                local bot = cam:WorldToViewportPoint(pos - Vector3.new(0,2.5,0))
-                if top.Z > 0 and bot.Z > 0 then
-                    local alt = math.abs(top.Y - bot.Y)
-                    if alt > 5 then
-                        local lar = alt * 0.55
-                        local cx = (top.X + bot.X) / 2
-                        local cy = (top.Y + bot.Y) / 2
-                        d.cont.Visible = true
-                        d.box.Size = UDim2.new(0, lar, 0, alt)
-                        d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
-                        d.nm.Size = UDim2.new(0, 150, 0, 16)
-                        d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 18)
-                        d.hp.Size = UDim2.new(0, 150, 0, 14)
-                        d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
-                        local hp, mx = getVida(m)
-                        if hp and hp > 0 then
-                            mx = mx or 100
-                            local pct = hp/mx
-                            d.hp.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx), math.floor(dist))
-                            d.hp.TextColor3 = pct>0.6 and Color3.fromRGB(0,255,0) or (pct>0.3 and Color3.fromRGB(255,220,0) or Color3.fromRGB(255,80,80))
+        local d = espEl[m]
+        if d then
+            if corpoMorto or not m.Parent or not parte or not parte.Parent then
+                d.cont.Visible = false
+            else
+                local dist = (parte.Position - mp).Magnitude
+                if dist <= MAX_DIST then
+                    local pos = parte.Position
+                    local top = cam:WorldToViewportPoint(pos + Vector3.new(0,2.5,0))
+                    local bot = cam:WorldToViewportPoint(pos - Vector3.new(0,2.5,0))
+                    if top.Z > 0 and bot.Z > 0 then
+                        local alt = math.abs(top.Y - bot.Y)
+                        if alt > 5 then
+                            local lar = alt * 0.55
+                            local cx = (top.X + bot.X) / 2
+                            local cy = (top.Y + bot.Y) / 2
+                            d.cont.Visible = true
+                            d.box.Size = UDim2.new(0, lar, 0, alt)
+                            d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
+                            d.nm.Size = UDim2.new(0, 150, 0, 16)
+                            d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 18)
+                            d.hp.Size = UDim2.new(0, 150, 0, 14)
+                            d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
+                            local hp, mx = getVida(m)
+                            if hp and hp > 0 then
+                                mx = mx or 100
+                                local pct = hp/mx
+                                d.hp.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx), math.floor(dist))
+                                d.hp.TextColor3 = pct>0.6 and Color3.fromRGB(0,255,0) or (pct>0.3 and Color3.fromRGB(255,220,0) or Color3.fromRGB(255,80,80))
+                            else
+                                d.hp.Text = math.floor(dist).."m"
+                            end
                         else
-                            d.hp.Text = math.floor(dist).."m"
+                            d.cont.Visible = false
                         end
                     else
                         d.cont.Visible = false
@@ -405,8 +419,6 @@ local function desenharESP()
                 else
                     d.cont.Visible = false
                 end
-            elseif d then
-                d.cont.Visible = false
             end
         end
     end
@@ -415,7 +427,7 @@ end
 local espListTh = nil
 local espDrawConn = nil
 
-function toggleESP()
+local function toggleESP()
     espAtivo = not espAtivo
     if espAtivo then
         atualizarListaESP()
@@ -426,28 +438,17 @@ function toggleESP()
             end
         end)
         espDrawConn = RunService.RenderStepped:Connect(desenharESP)
-        print("👁️ ESP 2D ON")
+        print("👁️ ESP ON")
     else
         espListTh = nil
-        if espDrawConn then espDrawConn:Disconnect() espDrawConn = nil end
+        if espDrawConn then espDrawConn:Disconnect(); espDrawConn = nil end
         limparESP()
         alvosESP = {}
-        print("👁️ ESP 2D OFF")
+        print("👁️ ESP OFF")
     end
-    attBts()
 end
 
--- 🔥 PREVIEW INDEPENDENTE (funciona com ESP desligado, sem resquício)
-function limparPreview()
-    if previewEl then
-        if previewEl.cont and previewEl.cont.Parent then
-            previewEl.cont:Destroy()
-        end
-        previewEl = nil
-    end
-    previewAlvo = nil
-end
-
+-- ===================== PREVIEW (criar + loop) =====================
 local function criarPreview(m)
     limparPreview()
     if not m or not m.Parent then return end
@@ -468,12 +469,12 @@ end
 
 local function atualizarPreview()
     if ativo then
-        limparPreview()
+        if previewEl then limparPreview() end
         return
     end
-    
+
     local t = acharAlvo()
-    
+
     if t ~= previewAlvo then
         if t then
             criarPreview(t)
@@ -481,7 +482,7 @@ local function atualizarPreview()
             limparPreview()
         end
     end
-    
+
     if previewEl and previewAlvo and previewAlvo.Parent then
         local cam = workspace.CurrentCamera
         local char = player.Character
@@ -521,7 +522,7 @@ RunService.RenderStepped:Connect(function()
     pcall(atualizarPreview)
 end)
 
--- GUI
+-- ===================== GUI =====================
 local CORES = {
     fundo=Color3.fromRGB(20,20,25), topo=Color3.fromRGB(30,30,40),
     botao=Color3.fromRGB(45,45,60), on=Color3.fromRGB(0,170,90),
@@ -531,7 +532,7 @@ local CORES = {
 }
 
 local sg = Instance.new("ScreenGui")
-sg.Name = "EZEK_"..VERSAO
+sg.Name = "EZEK_GUI_"..VERSAO
 sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.DisplayOrder = 999999
@@ -730,7 +731,7 @@ closeBtn.MouseButton1Click:Connect(function()
     rb.MouseButton1Click:Connect(function() main.Visible = true; rb:Destroy() end)
 end)
 
-function attBts()
+local function attBts()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
     btnLock.BackgroundColor3 = ativo and CORES.on or CORES.botao
     btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
@@ -744,8 +745,15 @@ function attBts()
     end
 end
 
-btnLock.MouseButton1Click:Connect(toggleLock)
-btnEsp.MouseButton1Click:Connect(toggleESP)
+btnLock.MouseButton1Click:Connect(function()
+    if ativo then desligarLock() else ligarLock() end
+    attBts()
+end)
+
+btnEsp.MouseButton1Click:Connect(function()
+    toggleESP()
+    attBts()
+end)
 
 -- TECLADO + CONTROLE
 local r1,r2,l1,l2 = false,false,false,false
@@ -756,19 +764,35 @@ UIS.InputBegan:Connect(function(i, gp)
         or i.KeyCode == Enum.KeyCode.ButtonR1 or i.KeyCode == Enum.KeyCode.ButtonR2
         or i.KeyCode == Enum.KeyCode.ButtonL1 or i.KeyCode == Enum.KeyCode.ButtonL2
     if gp and not nosso then return end
-    if i.KeyCode == Enum.KeyCode.Q then toggleLock(); return end
-    if i.KeyCode == Enum.KeyCode.E then toggleESP(); return end
+    if i.KeyCode == Enum.KeyCode.Q then
+        if ativo then desligarLock() else ligarLock() end
+        attBts()
+        return
+    end
+    if i.KeyCode == Enum.KeyCode.E then
+        toggleESP()
+        attBts()
+        return
+    end
     if i.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if i.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
     if i.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
     if i.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
     if r1 and r2 then
         local a = tick()
-        if a-uL > 0.8 then toggleLock(); uL = a; r1=false; r2=false end
+        if a-uL > 0.8 then
+            if ativo then desligarLock() else ligarLock() end
+            attBts()
+            uL = a; r1=false; r2=false
+        end
     end
     if l1 and l2 then
         local a = tick()
-        if a-uE > 0.8 then toggleESP(); uE = a; l1=false; l2=false end
+        if a-uE > 0.8 then
+            toggleESP()
+            attBts()
+            uE = a; l1=false; l2=false
+        end
     end
 end)
 
