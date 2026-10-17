@@ -1,11 +1,11 @@
--- EZEK v6 - ESP 2D + Preview (LIMPO E FUNCIONAL)
+-- EZEK v7 - Lock + Preview (corrigido travamento ao morrer)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local VERSAO = "v6"
+local VERSAO = "v7"
 local MAX_DIST = 400
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 30
@@ -17,9 +17,9 @@ local espEl = {}
 local alvosESP = {}
 local cache, cacheT = {}, 0
 
--- 🔥 Variáveis do preview
 local previewEl = nil
 local previewAlvo = nil
+local attBts -- forward declaration
 
 -- ===================== VIDA / UTIL =====================
 local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth"}
@@ -145,7 +145,7 @@ local function acharAlvo()
     return melhor
 end
 
--- ===================== PREVIEW (definido ANTES do lock) =====================
+-- ===================== PREVIEW =====================
 local function limparPreview()
     if previewEl and previewEl.cont and previewEl.cont.Parent then
         previewEl.cont:Destroy()
@@ -220,20 +220,59 @@ local function updateHPBar()
     end
 end
 
--- ===================== LOCK =====================
-local function atualizar()
-    if not ativo or not alvo or not alvo.Parent then return end
+-- ===================== 🔥 PARAR LOCK (CORREÇÃO PRINCIPAL) =====================
+local function pararLock()
+    if not ativo then return end
+    ativo = false
+    alvo = nil
+    RunService:UnbindFromRenderStep("EZEK_CAM")
+    if hpBar then hpBar:Destroy(); hpBar = nil end
+    
+    -- 🔥 RESTAURA CÂMERA E ROTAÇÃO
     local c = player.Character
-    if not c then return end
+    local h = c and c:FindFirstChildOfClass("Humanoid")
+    if h then
+        h.AutoRotate = true
+        h.CameraOffset = Vector3.new(0,0,0)
+        pcall(function() h.PlatformStand = false end)
+    end
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Custom
+        if h then camera.CameraSubject = h end
+    end)
+    
+    if attBts then attBts() end
+    print("🔓 Lock OFF (alvo morreu/sumiu)")
+end
+
+-- ===================== LOOP LOCK =====================
+local function atualizar()
+    if not ativo then return end
+    
+    -- 🔥 Se o alvo saiu do jogo
+    if not alvo or not alvo.Parent then
+        pararLock()
+        return
+    end
+    
+    -- 🔥 Se o alvo morreu
+    if not temVida(alvo) then
+        pararLock()
+        return
+    end
+    
+    local c = player.Character
+    if not c then pararLock() return end
     local r = c:FindFirstChild("HumanoidRootPart")
     local h = c:FindFirstChildOfClass("Humanoid")
-    if not r or not h or h.Health <= 0 then return end
+    if not r or not h or h.Health <= 0 then
+        pararLock()
+        return
+    end
+    
     local p = pegarParte(alvo)
-    if not p then return end
-    if not temVida(alvo) then
-        ativo = false; alvo = nil
-        RunService:UnbindFromRenderStep("EZEK_CAM")
-        if hpBar then hpBar:Destroy(); hpBar = nil end
+    if not p or not p.Parent then
+        pararLock()
         return
     end
 
@@ -264,7 +303,7 @@ local function ligarLock()
     if not t or not t.Parent then t = acharAlvo() end
     if not t then print("❌ Sem alvo na mira") return end
     
-    limparPreview() -- limpa a caixa verde
+    limparPreview()
     alvo = t
     ativo = true
     criarHPBar(t)
@@ -276,18 +315,7 @@ local function ligarLock()
 end
 
 local function desligarLock()
-    if not ativo then return end
-    ativo = false
-    alvo = nil
-    RunService:UnbindFromRenderStep("EZEK_CAM")
-    if hpBar then hpBar:Destroy(); hpBar = nil end
-    local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if h then h.AutoRotate = true end
-    pcall(function()
-        camera.CameraType = Enum.CameraType.Custom
-        if h then camera.CameraSubject = h end
-    end)
-    print("🔓 Lock OFF")
+    pararLock()
 end
 
 -- ===================== ESP =====================
@@ -448,7 +476,7 @@ local function toggleESP()
     end
 end
 
--- ===================== PREVIEW (criar + loop) =====================
+-- ===================== PREVIEW LOOP =====================
 local function criarPreview(m)
     limparPreview()
     if not m or not m.Parent then return end
@@ -472,17 +500,10 @@ local function atualizarPreview()
         if previewEl then limparPreview() end
         return
     end
-
     local t = acharAlvo()
-
     if t ~= previewAlvo then
-        if t then
-            criarPreview(t)
-        else
-            limparPreview()
-        end
+        if t then criarPreview(t) else limparPreview() end
     end
-
     if previewEl and previewAlvo and previewAlvo.Parent then
         local cam = workspace.CurrentCamera
         local char = player.Character
@@ -731,7 +752,7 @@ closeBtn.MouseButton1Click:Connect(function()
     rb.MouseButton1Click:Connect(function() main.Visible = true; rb:Destroy() end)
 end)
 
-local function attBts()
+attBts = function()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
     btnLock.BackgroundColor3 = ativo and CORES.on or CORES.botao
     btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
@@ -804,7 +825,7 @@ UIS.InputEnded:Connect(function(i)
 end)
 
 player.CharacterRemoving:Connect(function()
-    if ativo then desligarLock() end
+    if ativo then pararLock() end
     if espAtivo then toggleESP() end
     limparPreview()
 end)
