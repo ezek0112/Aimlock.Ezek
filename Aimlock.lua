@@ -1,4 +1,4 @@
--- EZEK v7 - Lock + Preview (corrigido travamento ao morrer)
+-- EZEK v7 - Lock + Preview (Teclas: P=Lock, O=ESP)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -19,7 +19,7 @@ local cache, cacheT = {}, 0
 
 local previewEl = nil
 local previewAlvo = nil
-local attBts -- forward declaration
+local attBts
 
 -- ===================== VIDA / UTIL =====================
 local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth"}
@@ -220,7 +220,7 @@ local function updateHPBar()
     end
 end
 
--- ===================== 🔥 PARAR LOCK (CORREÇÃO PRINCIPAL) =====================
+-- ===================== PARAR LOCK =====================
 local function pararLock()
     if not ativo then return end
     ativo = false
@@ -228,7 +228,6 @@ local function pararLock()
     RunService:UnbindFromRenderStep("EZEK_CAM")
     if hpBar then hpBar:Destroy(); hpBar = nil end
     
-    -- 🔥 RESTAURA CÂMERA E ROTAÇÃO
     local c = player.Character
     local h = c and c:FindFirstChildOfClass("Humanoid")
     if h then
@@ -242,39 +241,23 @@ local function pararLock()
     end)
     
     if attBts then attBts() end
-    print("🔓 Lock OFF (alvo morreu/sumiu)")
+    print("🔓 Lock OFF")
 end
 
 -- ===================== LOOP LOCK =====================
 local function atualizar()
     if not ativo then return end
-    
-    -- 🔥 Se o alvo saiu do jogo
-    if not alvo or not alvo.Parent then
-        pararLock()
-        return
-    end
-    
-    -- 🔥 Se o alvo morreu
-    if not temVida(alvo) then
-        pararLock()
-        return
-    end
+    if not alvo or not alvo.Parent then pararLock() return end
+    if not temVida(alvo) then pararLock() return end
     
     local c = player.Character
     if not c then pararLock() return end
     local r = c:FindFirstChild("HumanoidRootPart")
     local h = c:FindFirstChildOfClass("Humanoid")
-    if not r or not h or h.Health <= 0 then
-        pararLock()
-        return
-    end
+    if not r or not h or h.Health <= 0 then pararLock() return end
     
     local p = pegarParte(alvo)
-    if not p or not p.Parent then
-        pararLock()
-        return
-    end
+    if not p or not p.Parent then pararLock() return end
 
     if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
     if h.AutoRotate then h.AutoRotate = false end
@@ -776,25 +759,31 @@ btnEsp.MouseButton1Click:Connect(function()
     attBts()
 end)
 
--- TECLADO + CONTROLE
+-- TECLADO + CONTROLE (🔥 P = Lock, O = ESP)
 local r1,r2,l1,l2 = false,false,false,false
 local uL, uE = 0, 0
 
 UIS.InputBegan:Connect(function(i, gp)
-    local nosso = i.KeyCode == Enum.KeyCode.Q or i.KeyCode == Enum.KeyCode.E
+    local nosso = i.KeyCode == Enum.KeyCode.P or i.KeyCode == Enum.KeyCode.O
         or i.KeyCode == Enum.KeyCode.ButtonR1 or i.KeyCode == Enum.KeyCode.ButtonR2
         or i.KeyCode == Enum.KeyCode.ButtonL1 or i.KeyCode == Enum.KeyCode.ButtonL2
     if gp and not nosso then return end
-    if i.KeyCode == Enum.KeyCode.Q then
+    
+    -- 🔥 P = Lock
+    if i.KeyCode == Enum.KeyCode.P then
         if ativo then desligarLock() else ligarLock() end
         attBts()
         return
     end
-    if i.KeyCode == Enum.KeyCode.E then
+    
+    -- 🔥 O = ESP
+    if i.KeyCode == Enum.KeyCode.O then
         toggleESP()
         attBts()
         return
     end
+    
+    -- Controle
     if i.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if i.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
     if i.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
@@ -831,4 +820,4 @@ player.CharacterRemoving:Connect(function()
 end)
 
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Q=Lock E=ESP | R1+R2=Lock L1+L2=ESP")
+print("⚡ EZEK "..VERSAO.." carregado! | P=Lock O=ESP | R1+R2=Lock L1+L2=ESP")
