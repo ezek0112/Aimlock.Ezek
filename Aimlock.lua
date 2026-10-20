@@ -1,11 +1,11 @@
--- EZEK v10 - ESTÁVEL (Base v7) + Otimização Essencial + UI Completa
+-- EZEK v10 - ESTÁVEL (Sem loop infinito, sem bug de piscar)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- 🔥 FAXINEIRO: Limpa qualquer porcaria de versões antigas que ficou na tela
+-- 🔥 FAXINEIRO: Limpa painéis antigos se o script rodar de novo
 for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
     if obj:IsA("ScreenGui") and (string.find(obj.Name, "EZEK") or string.find(obj.Name, "Aimlock")) then
         obj:Destroy()
@@ -118,7 +118,6 @@ local function acharAlvo()
         if m ~= player.Character and filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
             if parte then
-                -- 🔥 OTIMIZAÇÃO: Só pega se estiver a mais de 3 metros (evita grudar em você)
                 if (parte.Position - cp).Magnitude > 3 then
                     local dir = (parte.Position - cp).Unit
                     local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
@@ -279,7 +278,6 @@ end
 
 local function desenharESP()
     if not espAtivo then return end
-    -- 🔥 OTIMIZAÇÃO: Desenha 15 vezes por segundo em vez de 60 (menos lag)
     if tick() - lastEspDraw < 0.06 then return end
     lastEspDraw = tick()
 
