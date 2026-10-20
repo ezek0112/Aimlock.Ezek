@@ -1,18 +1,18 @@
--- EZEK v8 - OTIMIZADO PARA MOBILE (Menos Lag)
+-- EZEK v8.1 - OTIMIZADO + UI MINIMIZÁVEL E FLUTUANTE
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local VERSAO = "v8-Otimizado"
+local VERSAO = "v8.1"
 local MAX_DIST = 400
-local INTERVALO_LISTA = 1.5 -- Atualiza a lista de inimigos mais devagar
+local INTERVALO_LISTA = 1.5
 local FOV_GRAUS = 30
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
-local filtros = {players=true, dummies=true, monstros=true, objetos=false} -- Desliguei objetos pra ajudar no lag
+local filtros = {players=true, dummies=true, monstros=true, objetos=false}
 local espEl = {}
 local alvosESP = {}
 local cache, cacheT = {}, 0
@@ -21,7 +21,6 @@ local previewEl = nil
 local previewAlvo = nil
 local attBts
 
--- OTIMIZAÇÃO: Controle de tempo para não desenhar toda hora
 local lastEspDraw = 0
 local lastPreviewDraw = 0
 
@@ -62,7 +61,7 @@ end
 local function temInteracao(m)
     if not m or not m:IsA("Model") then return false end
     if m:FindFirstChildOfClass("Humanoid") then return true end
-    return false -- OTIMIZAÇÃO: Só foca em bichos/jogadores, ignora baús pra não lagar
+    return false
 end
 
 local function getTipo(m)
@@ -84,7 +83,7 @@ local function getTodos()
         end
     end
     local function proc(pasta, prof)
-        if prof > 4 then return end -- OTIMIZAÇÃO: Não procura tão fundo
+        if prof > 4 then return end
         for _, o in ipairs(pasta:GetChildren()) do
             if o:IsA("Model") and not vistos[o] and temInteracao(o) and temVida(o) then
                 table.insert(lista,o); vistos[o]=true
@@ -236,8 +235,6 @@ end
 
 local function desenharESP()
     if not espAtivo then return end
-    
-    -- OTIMIZAÇÃO CRÍTICA: Só desenha 15 vezes por segundo (0.06s)
     if tick() - lastEspDraw < 0.06 then return end
     lastEspDraw = tick()
 
@@ -319,7 +316,6 @@ end
 local function atualizarPreview()
     if ativo then if previewEl then limparPreview() end return end
     
-    -- OTIMIZAÇÃO: Só procura alvo 10 vezes por segundo
     if tick() - lastPreviewDraw > 0.1 then
         local t = acharAlvo()
         if t ~= previewAlvo then
@@ -353,17 +349,96 @@ RunService.RenderStepped:Connect(function() pcall(atualizarPreview) end)
 
 -- ===================== GUI =====================
 local CORES = {fundo=Color3.fromRGB(20,20,25), topo=Color3.fromRGB(30,30,40), botao=Color3.fromRGB(45,45,60), on=Color3.fromRGB(0,170,90), off=Color3.fromRGB(180,50,50), texto=Color3.fromRGB(240,240,240), fraco=Color3.fromRGB(160,160,170), borda=Color3.fromRGB(90,90,120), cOn=Color3.fromRGB(0,170,90), cOff=Color3.fromRGB(60,60,75)}
-local sg = Instance.new("ScreenGui"); sg.Name = "EZEK_GUI_"..VERSAO; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999999; sg.Parent = player:WaitForChild("PlayerGui")
-local main = Instance.new("Frame", sg); main.Size = UDim2.new(0, 200, 0, 320); main.Position = UDim2.new(0, 15, 0, 60); main.BackgroundColor3 = CORES.fundo; main.BorderSizePixel = 0; main.Active = true; main.ClipsDescendants = true; Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
-local topBar = Instance.new("Frame", main); topBar.Size = UDim2.new(1,0,0,36); topBar.BackgroundColor3 = CORES.topo; topBar.BorderSizePixel = 0; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
-local title = Instance.new("TextLabel", topBar); title.Size = UDim2.new(1,-70,1,0); title.Position = UDim2.new(0,10,0,0); title.BackgroundTransparency = 1; title.Text = "🎯 EZEK "..VERSAO; title.TextColor3 = CORES.texto; title.Font = Enum.Font.GothamBold; title.TextSize = 12; title.TextXAlignment = Enum.TextXAlignment.Left
-local minBtn = Instance.new("TextButton", topBar); minBtn.Size = UDim2.new(0,26,0,26); minBtn.Position = UDim2.new(1,-60,0,5); minBtn.BackgroundColor3 = CORES.botao; minBtn.Text = "—"; minBtn.TextColor3 = CORES.texto; Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0,6)
-local closeBtn = Instance.new("TextButton", topBar); closeBtn.Size = UDim2.new(0,26,0,26); closeBtn.Position = UDim2.new(1,-30,0,5); closeBtn.BackgroundColor3 = CORES.off; closeBtn.Text = "✕"; closeBtn.TextColor3 = CORES.texto; Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,6)
-local content = Instance.new("Frame", main); content.Size = UDim2.new(1,-10,1,-44); content.Position = UDim2.new(0,5,0,40); content.BackgroundTransparency = 1
-local statusFrame = Instance.new("Frame", content); statusFrame.Size = UDim2.new(1,0,0,40); statusFrame.BackgroundColor3 = CORES.topo; statusFrame.BorderSizePixel = 0; Instance.new("UICorner", statusFrame).CornerRadius = UDim.new(0,8)
-local statusLbl = Instance.new("TextLabel", statusFrame); statusLbl.Size = UDim2.new(1,-12,1,-8); statusLbl.Position = UDim2.new(0,6,0,4); statusLbl.BackgroundTransparency = 1; statusLbl.Text = "🔓 Lock: OFF\n👁️ ESP: OFF"; statusLbl.TextColor3 = CORES.fraco; statusLbl.Font = Enum.Font.GothamMedium; statusLbl.TextSize = 11; statusLbl.TextXAlignment = Enum.TextXAlignment.Left
-local btnLock = Instance.new("TextButton", content); btnLock.Size = UDim2.new(1,0,0,36); btnLock.Position = UDim2.new(0,0,0,46); btnLock.BackgroundColor3 = CORES.botao; btnLock.Text = "🔓 LOCK: OFF"; btnLock.TextColor3 = CORES.texto; btnLock.Font = Enum.Font.GothamBold; btnLock.TextSize = 12; Instance.new("UICorner", btnLock).CornerRadius = UDim.new(0,8)
-local btnEsp = Instance.new("TextButton", content); btnEsp.Size = UDim2.new(1,0,0,36); btnEsp.Position = UDim2.new(0,0,0,86); btnEsp.BackgroundColor3 = CORES.botao; btnEsp.Text = "👁️ ESP: OFF"; btnEsp.TextColor3 = CORES.texto; btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12; Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0,8)
+
+local sg = Instance.new("ScreenGui")
+sg.Name = "EZEK_GUI_"..VERSAO
+sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999999
+sg.Parent = player:WaitForChild("PlayerGui")
+
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.new(0, 200, 0, 320)
+main.Position = UDim2.new(0, 15, 0, 60)
+main.BackgroundColor3 = CORES.fundo
+main.BorderSizePixel = 0
+main.Active = true
+main.ClipsDescendants = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+local topBar = Instance.new("Frame", main)
+topBar.Size = UDim2.new(1,0,0,36)
+topBar.BackgroundColor3 = CORES.topo
+topBar.BorderSizePixel = 0
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
+
+local title = Instance.new("TextLabel", topBar)
+title.Size = UDim2.new(1,-70,1,0)
+title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Text = "🎯 EZEK "..VERSAO
+title.TextColor3 = CORES.texto
+title.Font = Enum.Font.GothamBold
+title.TextSize = 12
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local minBtn = Instance.new("TextButton", topBar)
+minBtn.Size = UDim2.new(0,26,0,26)
+minBtn.Position = UDim2.new(1,-60,0,5)
+minBtn.BackgroundColor3 = CORES.botao
+minBtn.Text = "—"
+minBtn.TextColor3 = CORES.texto
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 16
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0,6)
+
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0,26,0,26)
+closeBtn.Position = UDim2.new(1,-30,0,5)
+closeBtn.BackgroundColor3 = CORES.off
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = CORES.texto
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,6)
+
+local content = Instance.new("Frame", main)
+content.Size = UDim2.new(1,-10,1,-44)
+content.Position = UDim2.new(0,5,0,40)
+content.BackgroundTransparency = 1
+
+local statusFrame = Instance.new("Frame", content)
+statusFrame.Size = UDim2.new(1,0,0,40)
+statusFrame.BackgroundColor3 = CORES.topo
+statusFrame.BorderSizePixel = 0
+Instance.new("UICorner", statusFrame).CornerRadius = UDim.new(0,8)
+local statusLbl = Instance.new("TextLabel", statusFrame)
+statusLbl.Size = UDim2.new(1,-12,1,-8)
+statusLbl.Position = UDim2.new(0,6,0,4)
+statusLbl.BackgroundTransparency = 1
+statusLbl.Text = "🔓 Lock: OFF\n👁️ ESP: OFF"
+statusLbl.TextColor3 = CORES.fraco
+statusLbl.Font = Enum.Font.GothamMedium
+statusLbl.TextSize = 11
+statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnLock = Instance.new("TextButton", content)
+btnLock.Size = UDim2.new(1,0,0,36)
+btnLock.Position = UDim2.new(0,0,0,46)
+btnLock.BackgroundColor3 = CORES.botao
+btnLock.Text = "🔓 LOCK: OFF"
+btnLock.TextColor3 = CORES.texto
+btnLock.Font = Enum.Font.GothamBold
+btnLock.TextSize = 12
+Instance.new("UICorner", btnLock).CornerRadius = UDim.new(0,8)
+
+local btnEsp = Instance.new("TextButton", content)
+btnEsp.Size = UDim2.new(1,0,0,36)
+btnEsp.Position = UDim2.new(0,0,0,86)
+btnEsp.BackgroundColor3 = CORES.botao
+btnEsp.Text = "👁️ ESP: OFF"
+btnEsp.TextColor3 = CORES.texto
+btnEsp.Font = Enum.Font.GothamBold
+btnEsp.TextSize = 12
+Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0,8)
 
 local function drag(f,h)
     h = h or f; local dr, ds, sp
@@ -374,12 +449,35 @@ end
 drag(main, topBar)
 
 local min = false
-minBtn.MouseButton1Click:Connect(function() min = not min; main.Size = min and UDim2.new(0,200,0,36) or UDim2.new(0,200,0,320); content.Visible = not min; minBtn.Text = min and "+" or "—" end)
-closeBtn.MouseButton1Click:Connect(function() main.Visible = false end)
+minBtn.MouseButton1Click:Connect(function()
+    min = not min
+    main.Size = min and UDim2.new(0,200,0,36) or UDim2.new(0,200,0,320)
+    content.Visible = not min
+    minBtn.Text = min and "+" or "—"
+end)
+
+-- 🔥 BOTÃO FLUTUANTE PARA REABRIR
+closeBtn.MouseButton1Click:Connect(function()
+    main.Visible = false
+    local rb = Instance.new("TextButton", sg)
+    rb.Size = UDim2.new(0, 44, 0, 44)
+    rb.Position = UDim2.new(1, -60, 0, 20)
+    rb.BackgroundColor3 = CORES.topo
+    rb.Text = "🎯"
+    rb.TextSize = 20
+    Instance.new("UICorner", rb).CornerRadius = UDim.new(1,0)
+    drag(rb)
+    rb.MouseButton1Click:Connect(function()
+        main.Visible = true
+        rb:Destroy()
+    end)
+end)
 
 attBts = function()
-    btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"; btnLock.BackgroundColor3 = ativo and CORES.on or CORES.botao
-    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"; btnEsp.BackgroundColor3 = espAtivo and CORES.on or CORES.botao
+    btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
+    btnLock.BackgroundColor3 = ativo and CORES.on or CORES.botao
+    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
+    btnEsp.BackgroundColor3 = espAtivo and CORES.on or CORES.botao
     statusLbl.Text = (ativo and "🔒 Lock: ON" or "🔓 Lock: OFF").."\n"..(espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF")
 end
 
