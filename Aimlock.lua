@@ -1,11 +1,19 @@
--- EZEK v9.3 - ESP Preview Corrigido + UI Completa + Controle
+-- EZEK v10 - ESTÁVEL (Base v7) + Otimização Essencial + UI Completa
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local VERSAO = "v9.3"
+-- 🔥 FAXINEIRO: Limpa qualquer porcaria de versões antigas que ficou na tela
+for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
+    if obj:IsA("ScreenGui") and (string.find(obj.Name, "EZEK") or string.find(obj.Name, "Aimlock")) then
+        obj:Destroy()
+    end
+end
+pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
+
+local VERSAO = "v10"
 local MAX_DIST = 400
 local INTERVALO_LISTA = 1.5
 local FOV_GRAUS = 30
@@ -24,7 +32,6 @@ local attBts
 local lastEspDraw = 0
 local lastPreviewDraw = 0
 
--- Variáveis do Controle
 local r1, r2, l1, l2 = false, false, false, false
 local uL, uE = 0, 0
 
@@ -64,12 +71,6 @@ local function pegarParte(m)
         or m:FindFirstChild("Root") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
 
-local function temInteracao(m)
-    if not m or not m:IsA("Model") then return false end
-    if m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true) then return true end
-    return false
-end
-
 local function getTipo(m)
     if not m then return "monstros" end
     if Players:GetPlayerFromCharacter(m) then return "players" end
@@ -97,10 +98,11 @@ local function getTodos()
     local function proc(pasta, prof)
         if prof > 3 then return end
         for _, o in ipairs(pasta:GetChildren()) do
-            if o:IsA("Model") and not vistos[o] and o ~= player.Character and temInteracao(o) and pegarParte(o) then
-                if temVida(o) then table.insert(lista,o); vistos[o]=true end
+            if o:IsA("Model") and not vistos[o] and o ~= player.Character and temVida(o) and pegarParte(o) then
+                table.insert(lista,o); vistos[o]=true
+            elseif o:IsA("Folder") then
+                proc(o, prof+1)
             end
-            if o:IsA("Folder") or o:IsA("Model") then proc(o, prof+1) end
         end
     end
     proc(workspace, 0)
@@ -108,7 +110,6 @@ local function getTodos()
     return lista
 end
 
--- 🔥 FUNÇÃO DE ACHAR ALVO CORRIGIDA
 local function acharAlvo()
     local melhor, melhorAng = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
@@ -117,9 +118,8 @@ local function acharAlvo()
         if m ~= player.Character and filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
             if parte then
-                local dist = (parte.Position - cp).Magnitude
-                -- 🔥 Só considera alvo se estiver a mais de 3 metros (evita grudar em você)
-                if dist > 3 then
+                -- 🔥 OTIMIZAÇÃO: Só pega se estiver a mais de 3 metros (evita grudar em você)
+                if (parte.Position - cp).Magnitude > 3 then
                     local dir = (parte.Position - cp).Unit
                     local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
                     if ang < melhorAng then
@@ -138,7 +138,6 @@ local function criarHPBar(m)
     if hpBar and hpBar.Parent then hpBar:Destroy() end
     local root = pegarParte(m)
     if not root then return end
-    
     local bb = Instance.new("BillboardGui", m)
     bb.Adornee = root; bb.Size = UDim2.new(0, 150, 0, 45); bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true
     hpBar = bb
@@ -147,7 +146,6 @@ local function criarHPBar(m)
     nome.Name = "N"; nome.Size = UDim2.new(1,0,0,14); nome.Position = UDim2.new(0,0,0,0)
     nome.BackgroundTransparency = 1; nome.Text = m.Name; nome.TextColor3 = Color3.new(1,1,1)
     nome.TextStrokeTransparency = 0; nome.Font = Enum.Font.GothamBold; nome.TextSize = 12
-    nome.TextXAlignment = Enum.TextXAlignment.Center
 
     local bg = Instance.new("Frame", bb)
     bg.Name = "B"; bg.Size = UDim2.new(1,0,0,10); bg.Position = UDim2.new(0,0,0,16)
@@ -162,8 +160,6 @@ local function criarHPBar(m)
     hpText.Name = "H"; hpText.Size = UDim2.new(1,0,0,14); hpText.Position = UDim2.new(0,0,0,28)
     hpText.BackgroundTransparency = 1; hpText.TextColor3 = Color3.new(1,1,1)
     hpText.TextStrokeTransparency = 0; hpText.Font = Enum.Font.GothamBold; hpText.TextSize = 11
-    hpText.TextXAlignment = Enum.TextXAlignment.Center
-    hpText.Text = "?"
 end
 
 local function updateHPBar()
@@ -171,17 +167,13 @@ local function updateHPBar()
     local hp, mx = getVida(alvo)
     if not hp then return end
     local pct = math.clamp(hp/(mx or 100),0,1)
-    
     local f = hpBar:FindFirstChild("B") and hpBar.B:FindFirstChild("F")
     if f then
         f.Size = UDim2.new(pct,0,1,0)
         f.BackgroundColor3 = pct>0.6 and Color3.fromRGB(0,200,0) or (pct>0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,50,50))
     end
-    
     local hTxt = hpBar:FindFirstChild("H")
-    if hTxt then
-        hTxt.Text = string.format("%d/%d", math.floor(hp), math.floor(mx or 100))
-    end
+    if hTxt then hTxt.Text = string.format("%d/%d", math.floor(hp), math.floor(mx or 100)) end
 end
 
 -- ===================== PARAR LOCK =====================
@@ -254,21 +246,15 @@ local function criarESP(m)
     if espEl[m] then return end
     local cont = Instance.new("Frame", espGui)
     cont.BackgroundTransparency = 1; cont.BorderSizePixel = 0
-    
     local box = Instance.new("Frame", cont)
     box.BackgroundTransparency = 1; box.BorderSizePixel = 0
     local st = Instance.new("UIStroke", box); st.Color = cor(getTipo(m)); st.Thickness = 1.5; st.Transparency = 0.2
-    
     local nm = Instance.new("TextLabel", cont)
     nm.BackgroundTransparency = 1; nm.Font = Enum.Font.GothamBold; nm.TextSize = 11
     nm.TextColor3 = st.Color; nm.TextStrokeTransparency = 0; nm.Text = m.Name
-    nm.TextXAlignment = Enum.TextXAlignment.Center
-    
     local hp = Instance.new("TextLabel", cont)
     hp.BackgroundTransparency = 1; hp.Font = Enum.Font.GothamBold; hp.TextSize = 10
     hp.TextColor3 = Color3.fromRGB(0,255,0); hp.TextStrokeTransparency = 0
-    hp.TextXAlignment = Enum.TextXAlignment.Center
-    
     espEl[m] = {cont=cont, box=box, st=st, nm=nm, hp=hp}
 end
 
@@ -293,6 +279,7 @@ end
 
 local function desenharESP()
     if not espAtivo then return end
+    -- 🔥 OTIMIZAÇÃO: Desenha 15 vezes por segundo em vez de 60 (menos lag)
     if tick() - lastEspDraw < 0.06 then return end
     lastEspDraw = tick()
 
@@ -320,16 +307,12 @@ local function desenharESP()
                             local cx = (top.X + bot.X) / 2
                             local cy = (top.Y + bot.Y) / 2
                             d.cont.Visible = true
-                            
                             d.box.Size = UDim2.new(0, lar, 0, alt)
                             d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
-                            
                             d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 16)
                             d.nm.Size = UDim2.new(0, 150, 0, 14)
-                            
                             d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
                             d.hp.Size = UDim2.new(0, 150, 0, 14)
-                            
                             local hp, mx = getVida(m)
                             if hp then
                                 local pct = hp/(mx or 100)
@@ -513,17 +496,9 @@ UIS.InputBegan:Connect(function(i, gp)
         or i.KeyCode == Enum.KeyCode.ButtonR1 or i.KeyCode == Enum.KeyCode.ButtonR2
         or i.KeyCode == Enum.KeyCode.ButtonL1 or i.KeyCode == Enum.KeyCode.ButtonL2
     if gp and not nosso then return end
-
-    if i.KeyCode == Enum.KeyCode.P then
-        if ativo then pararLock() else ligarLock() end
-        attBts()
-        return
-    end
-    if i.KeyCode == Enum.KeyCode.O then
-        toggleESP()
-        attBts()
-        return
-    end
+    
+    if i.KeyCode == Enum.KeyCode.P then if ativo then pararLock() else ligarLock() end; attBts() return end
+    if i.KeyCode == Enum.KeyCode.O then toggleESP(); attBts() return end
 
     if i.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if i.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
@@ -534,16 +509,13 @@ UIS.InputBegan:Connect(function(i, gp)
         local a = tick()
         if a-uL > 0.8 then
             if ativo then pararLock() else ligarLock() end
-            attBts()
-            uL = a; r1=false; r2=false
+            attBts(); uL = a; r1=false; r2=false
         end
     end
     if l1 and l2 then
         local a = tick()
         if a-uE > 0.8 then
-            toggleESP()
-            attBts()
-            uE = a; l1=false; l2=false
+            toggleESP(); attBts(); uE = a; l1=false; l2=false
         end
     end
 end)
