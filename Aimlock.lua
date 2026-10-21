@@ -1,11 +1,11 @@
--- EZEK v10.1 - LOCK CONSERTADO (FOV Maior)
+-- EZEK v10.2 - LOCK 100% FUNCIONAL (Correção do erro silencioso)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- 🔥 FAXINEIRO: Limpa painéis antigos se o script rodar de novo
+-- 🔥 FAXINEIRO
 for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
     if obj:IsA("ScreenGui") and (string.find(obj.Name, "EZEK") or string.find(obj.Name, "Aimlock")) then
         obj:Destroy()
@@ -13,10 +13,10 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v10.1"
+local VERSAO = "v10.2"
 local MAX_DIST = 400
 local INTERVALO_LISTA = 1.5
-local FOV_GRAUS = 90 -- 🔥 AUMENTADO PRA FACILITAR O LOCK NO CELULAR
+local FOV_GRAUS = 90
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
@@ -28,6 +28,7 @@ local cache, cacheT = {}, 0
 local previewEl = nil
 local previewAlvo = nil
 local attBts
+local limparPreview -- 🔥 O CULPADO ERA ESSA LINHA FALTANDO AQUI
 
 local lastEspDraw = 0
 local lastPreviewDraw = 0
@@ -118,7 +119,6 @@ local function acharAlvo()
         if m ~= player.Character and filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
             if parte then
-                -- 🔥 OTIMIZAÇÃO: Só pega se estiver a mais de 2 metros
                 if (parte.Position - cp).Magnitude > 2 then
                     local dir = (parte.Position - cp).Unit
                     local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
@@ -346,7 +346,7 @@ local function toggleESP()
 end
 
 -- ===================== PREVIEW =====================
-local function limparPreview()
+function limparPreview() -- 🔥 TIREI O 'local' DAQUI
     if previewEl and previewEl.cont and previewEl.cont.Parent then previewEl.cont:Destroy() end
     previewEl = nil; previewAlvo = nil
 end
