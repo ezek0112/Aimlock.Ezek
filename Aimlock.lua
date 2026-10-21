@@ -1,4 +1,4 @@
--- EZEK v10 - ESTÁVEL (Sem loop infinito, sem bug de piscar)
+-- EZEK v10.1 - LOCK CONSERTADO (FOV Maior)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,10 +13,10 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v10"
+local VERSAO = "v10.1"
 local MAX_DIST = 400
 local INTERVALO_LISTA = 1.5
-local FOV_GRAUS = 30
+local FOV_GRAUS = 90 -- 🔥 AUMENTADO PRA FACILITAR O LOCK NO CELULAR
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
@@ -118,7 +118,8 @@ local function acharAlvo()
         if m ~= player.Character and filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
             if parte then
-                if (parte.Position - cp).Magnitude > 3 then
+                -- 🔥 OTIMIZAÇÃO: Só pega se estiver a mais de 2 metros
+                if (parte.Position - cp).Magnitude > 2 then
                     local dir = (parte.Position - cp).Unit
                     local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
                     if ang < melhorAng then
