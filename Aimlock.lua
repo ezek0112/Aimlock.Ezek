@@ -1,4 +1,4 @@
--- EZEK v10.2 - LOCK 100% FUNCIONAL (Correção do erro silencioso)
+-- EZEK v10.5 - FILTROS DE VOLTA (Players, Dummies, Monstros, Objetos)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,14 +13,14 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v10.2"
-local MAX_DIST = 400
-local INTERVALO_LISTA = 1.5
-local FOV_GRAUS = 90
+local VERSAO = "v10.5"
+local MAX_DIST = 500
+local INTERVALO_LISTA = 1
+local FOV_GRAUS = 120
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
-local filtros = {players=true, dummies=true, monstros=true, objetos=false}
+local filtros = {players=true, dummies=true, monstros=true, objetos=true} -- 🔥 Aqui estão os filtros
 local espEl = {}
 local alvosESP = {}
 local cache, cacheT = {}, 0
@@ -28,7 +28,7 @@ local cache, cacheT = {}, 0
 local previewEl = nil
 local previewAlvo = nil
 local attBts
-local limparPreview -- 🔥 O CULPADO ERA ESSA LINHA FALTANDO AQUI
+local limparPreview
 
 local lastEspDraw = 0
 local lastPreviewDraw = 0
@@ -37,8 +37,8 @@ local r1, r2, l1, l2 = false, false, false, false
 local uL, uE = 0, 0
 
 -- ===================== VIDA / UTIL =====================
-local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth"}
-local NM = {"MaxHealth","MaxHP","maxhealth","MaxHp","HPMAX","VidaMaxima","MaxVida","TotalHealth","MaxLife"}
+local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth","HpMax","MaxHp"}
+local NM = {"MaxHealth","MaxHP","maxhealth","MaxHp","HPMAX","VidaMaxima","MaxVida","TotalHealth","MaxLife","HpMax"}
 
 local function getAtrib(m, lista)
     if not m then return nil end
@@ -56,13 +56,16 @@ end
 local function getVida(m)
     if not m then return nil,nil end
     local h = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
-    if h and h.Health>0 then return h.Health, h.MaxHealth end
+    if h then return h.Health, h.MaxHealth end
     local hp = getAtrib(m, NV)
-    if hp then return hp, getAtrib(m,NM) or hp end
+    if hp then return hp, getAtrib(m,NM) or 100 end
     return nil,nil
 end
 
-local function temVida(m) local h=getVida(m) return h and h>0 end
+local function temVida(m)
+    local hp = getVida(m)
+    return hp and hp > 0
+end
 
 local function pegarParte(m)
     if not m then return nil end
@@ -97,13 +100,12 @@ local function getTodos()
         end
     end
     local function proc(pasta, prof)
-        if prof > 3 then return end
+        if prof > 5 then return end
         for _, o in ipairs(pasta:GetChildren()) do
             if o:IsA("Model") and not vistos[o] and o ~= player.Character and temVida(o) and pegarParte(o) then
                 table.insert(lista,o); vistos[o]=true
-            elseif o:IsA("Folder") then
-                proc(o, prof+1)
             end
+            if o:IsA("Folder") or o:IsA("Model") then proc(o, prof+1) end
         end
     end
     proc(workspace, 0)
@@ -119,7 +121,8 @@ local function acharAlvo()
         if m ~= player.Character and filtros[getTipo(m)] and temVida(m) then
             local parte = pegarParte(m)
             if parte then
-                if (parte.Position - cp).Magnitude > 2 then
+                local dist = (parte.Position - cp).Magnitude
+                if dist > 0.5 then 
                     local dir = (parte.Position - cp).Unit
                     local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
                     if ang < melhorAng then
@@ -146,6 +149,7 @@ local function criarHPBar(m)
     nome.Name = "N"; nome.Size = UDim2.new(1,0,0,14); nome.Position = UDim2.new(0,0,0,0)
     nome.BackgroundTransparency = 1; nome.Text = m.Name; nome.TextColor3 = Color3.new(1,1,1)
     nome.TextStrokeTransparency = 0; nome.Font = Enum.Font.GothamBold; nome.TextSize = 12
+    nome.TextXAlignment = Enum.TextXAlignment.Center
 
     local bg = Instance.new("Frame", bb)
     bg.Name = "B"; bg.Size = UDim2.new(1,0,0,10); bg.Position = UDim2.new(0,0,0,16)
@@ -160,6 +164,7 @@ local function criarHPBar(m)
     hpText.Name = "H"; hpText.Size = UDim2.new(1,0,0,14); hpText.Position = UDim2.new(0,0,0,28)
     hpText.BackgroundTransparency = 1; hpText.TextColor3 = Color3.new(1,1,1)
     hpText.TextStrokeTransparency = 0; hpText.Font = Enum.Font.GothamBold; hpText.TextSize = 11
+    hpText.TextXAlignment = Enum.TextXAlignment.Center
 end
 
 local function updateHPBar()
@@ -239,7 +244,9 @@ espGui.ResetOnSpawn = false; espGui.IgnoreGuiInset = true; espGui.DisplayOrder =
 espGui.Parent = player:WaitForChild("PlayerGui")
 
 local function cor(tipo)
-    if tipo=="players" then return Color3.fromRGB(255,70,70) else return Color3.fromRGB(70,150,255) end
+    if tipo=="players" then return Color3.fromRGB(255,70,70) 
+    elseif tipo=="dummies" then return Color3.fromRGB(255,200,0)
+    else return Color3.fromRGB(70,150,255) end
 end
 
 local function criarESP(m)
@@ -249,12 +256,17 @@ local function criarESP(m)
     local box = Instance.new("Frame", cont)
     box.BackgroundTransparency = 1; box.BorderSizePixel = 0
     local st = Instance.new("UIStroke", box); st.Color = cor(getTipo(m)); st.Thickness = 1.5; st.Transparency = 0.2
+    
     local nm = Instance.new("TextLabel", cont)
     nm.BackgroundTransparency = 1; nm.Font = Enum.Font.GothamBold; nm.TextSize = 11
     nm.TextColor3 = st.Color; nm.TextStrokeTransparency = 0; nm.Text = m.Name
+    nm.TextXAlignment = Enum.TextXAlignment.Center
+    
     local hp = Instance.new("TextLabel", cont)
     hp.BackgroundTransparency = 1; hp.Font = Enum.Font.GothamBold; hp.TextSize = 10
     hp.TextColor3 = Color3.fromRGB(0,255,0); hp.TextStrokeTransparency = 0
+    hp.TextXAlignment = Enum.TextXAlignment.Center
+    
     espEl[m] = {cont=cont, box=box, st=st, nm=nm, hp=hp}
 end
 
@@ -306,12 +318,16 @@ local function desenharESP()
                             local cx = (top.X + bot.X) / 2
                             local cy = (top.Y + bot.Y) / 2
                             d.cont.Visible = true
+                            
                             d.box.Size = UDim2.new(0, lar, 0, alt)
                             d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
+                            
                             d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 16)
                             d.nm.Size = UDim2.new(0, 150, 0, 14)
+                            
                             d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
                             d.hp.Size = UDim2.new(0, 150, 0, 14)
+                            
                             local hp, mx = getVida(m)
                             if hp then
                                 local pct = hp/(mx or 100)
@@ -346,7 +362,7 @@ local function toggleESP()
 end
 
 -- ===================== PREVIEW =====================
-function limparPreview() -- 🔥 TIREI O 'local' DAQUI
+function limparPreview()
     if previewEl and previewEl.cont and previewEl.cont.Parent then previewEl.cont:Destroy() end
     previewEl = nil; previewAlvo = nil
 end
@@ -395,7 +411,7 @@ end
 RunService.RenderStepped:Connect(function() pcall(atualizarPreview) end)
 
 -- ===================== GUI =====================
-local CORES = {fundo=Color3.fromRGB(20,20,25), topo=Color3.fromRGB(30,30,40), botao=Color3.fromRGB(45,45,60), on=Color3.fromRGB(0,170,90), off=Color3.fromRGB(180,50,50), texto=Color3.fromRGB(240,240,240), fraco=Color3.fromRGB(160,160,170), borda=Color3.fromRGB(90,90,120)}
+local CORES = {fundo=Color3.fromRGB(20,20,25), topo=Color3.fromRGB(30,30,40), botao=Color3.fromRGB(45,45,60), on=Color3.fromRGB(0,170,90), off=Color3.fromRGB(180,50,50), texto=Color3.fromRGB(240,240,240), fraco=Color3.fromRGB(160,160,170), borda=Color3.fromRGB(90,90,120), cOn=Color3.fromRGB(0,170,90), cOff=Color3.fromRGB(60,60,75)}
 
 local sg = Instance.new("ScreenGui")
 sg.Name = "EZEK_GUI_"..VERSAO
@@ -403,7 +419,8 @@ sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999999
 sg.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame", sg)
-main.Size = UDim2.new(0, 200, 0, 320); main.Position = UDim2.new(0, 15, 0, 60)
+-- 🔥 Aumentei o tamanho da janela pra caber os filtros (de 320 pra 430)
+main.Size = UDim2.new(0, 200, 0, 430); main.Position = UDim2.new(0, 15, 0, 60)
 main.BackgroundColor3 = CORES.fundo; main.BorderSizePixel = 0; main.Active = true; main.ClipsDescendants = true
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 
@@ -446,6 +463,50 @@ btnEsp.Size = UDim2.new(1,0,0,36); btnEsp.Position = UDim2.new(0,0,0,86); btnEsp
 btnEsp.Text = "👁️ ESP: OFF"; btnEsp.TextColor3 = CORES.texto; btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0,8)
 
+-- 🔥 ADICIONANDO OS FILTROS DE VOLTA
+local filtFrame = Instance.new("Frame", content)
+filtFrame.Size = UDim2.new(1,0,0,126)
+filtFrame.Position = UDim2.new(0,0,0,130)
+filtFrame.BackgroundColor3 = CORES.topo
+filtFrame.BorderSizePixel = 0
+Instance.new("UICorner", filtFrame).CornerRadius = UDim.new(0,8)
+
+local fTit = Instance.new("TextLabel", filtFrame)
+fTit.Size = UDim2.new(1,-10,0,16); fTit.Position = UDim2.new(0,6,0,2)
+fTit.BackgroundTransparency = 1; fTit.Text = "🎛️ Filtros"; fTit.TextColor3 = CORES.fraco
+fTit.Font = Enum.Font.GothamBold; fTit.TextSize = 10; fTit.TextXAlignment = Enum.TextXAlignment.Left
+
+local function mkCheck(txt, chave, y)
+    local cf = Instance.new("Frame", filtFrame)
+    cf.Size = UDim2.new(1,-12,0,24); cf.Position = UDim2.new(0,6,0,y); cf.BackgroundTransparency = 1
+    local box = Instance.new("TextButton", cf)
+    box.Size = UDim2.new(0,20,0,20); box.Position = UDim2.new(0,0,0,2)
+    box.BackgroundColor3 = filtros[chave] and CORES.cOn or CORES.cOff
+    box.Text = filtros[chave] and "✓" or ""; box.TextColor3 = CORES.texto
+    box.Font = Enum.Font.GothamBold; box.TextSize = 12
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0,4)
+    local lb = Instance.new("TextLabel", cf)
+    lb.Size = UDim2.new(1,-26,1,0); lb.Position = UDim2.new(0,26,0,0)
+    lb.BackgroundTransparency = 1; lb.Text = txt; lb.TextColor3 = CORES.texto
+    lb.Font = Enum.Font.GothamMedium; lb.TextSize = 12; lb.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local function tg()
+        filtros[chave] = not filtros[chave]
+        box.BackgroundColor3 = filtros[chave] and CORES.cOn or CORES.cOff
+        box.Text = filtros[chave] and "✓" or ""
+        -- 🔥 Atualiza o ESP na hora se mudar o filtro
+        if espAtivo then limparESP(); alvosESP={}; atualizarListaESP() end
+    end
+    box.MouseButton1Click:Connect(tg)
+    lb.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then tg() end end)
+end
+
+mkCheck("👤 Players","players",20)
+mkCheck("🎯 Dummies","dummies",44)
+mkCheck("👹 Monstros","monstros",68)
+mkCheck("📦 Objetos","objetos",92)
+
+-- Botão flutuante
 local floatingBtn = Instance.new("TextButton", sg)
 floatingBtn.Size = UDim2.new(0, 44, 0, 44); floatingBtn.Position = UDim2.new(1, -60, 0, 20)
 floatingBtn.BackgroundColor3 = CORES.topo; floatingBtn.Text = "🎯"; floatingBtn.TextSize = 20
@@ -464,7 +525,8 @@ drag(floatingBtn)
 local min = false
 minBtn.MouseButton1Click:Connect(function()
     min = not min
-    main.Size = min and UDim2.new(0,200,0,36) or UDim2.new(0,200,0,320)
+    -- 🔥 Ajustado pra nova altura de 430
+    main.Size = min and UDim2.new(0,200,0,36) or UDim2.new(0,200,0,430)
     content.Visible = not min
     minBtn.Text = min and "+" or "—"
 end)
@@ -506,16 +568,11 @@ UIS.InputBegan:Connect(function(i, gp)
 
     if r1 and r2 then
         local a = tick()
-        if a-uL > 0.8 then
-            if ativo then pararLock() else ligarLock() end
-            attBts(); uL = a; r1=false; r2=false
-        end
+        if a-uL > 0.8 then if ativo then pararLock() else ligarLock() end; attBts(); uL = a; r1=false; r2=false end
     end
     if l1 and l2 then
         local a = tick()
-        if a-uE > 0.8 then
-            toggleESP(); attBts(); uE = a; l1=false; l2=false
-        end
+        if a-uE > 0.8 then toggleESP(); attBts(); uE = a; l1=false; l2=false end
     end
 end)
 
