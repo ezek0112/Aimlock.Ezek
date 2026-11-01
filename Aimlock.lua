@@ -1,4 +1,4 @@
--- EZEK v11.3 - MIRA INTELIGENTE (Câmera alta = Cabeça / Câmera baixa = Peito)
+-- EZEK v11.4 - CÂMERA SUAVE NO PULO + MIRA INTELIGENTE
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,7 +13,7 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v11.3"
+local VERSAO = "v11.4"
 local MAX_DIST = 500
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 120
@@ -202,7 +202,7 @@ local function pararLock()
     if attBts then attBts() end
 end
 
--- ===================== LOOP LOCK (MIRA INTELIGENTE) =====================
+-- ===================== LOOP LOCK (CÂMERA SUAVE) =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
     local c = player.Character
@@ -230,30 +230,32 @@ local function atualizar()
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
     
-    -- Posição alta da câmera
+    -- Posição alta da câmera (baseada no seu Y)
     local posicaoAtual = camera.CFrame.Position
-    local novaPosicao = Vector3.new(posicaoAtual.X, r.Position.Y + ALTURA_DA_CAMERA, posicaoAtual.Z)
+    local alvoY = r.Position.Y + ALTURA_DA_CAMERA
     
-    -- 🔥 AQUI ESTÁ A INTELIGÊNCIA DA MIRA:
+    -- 🔥 SUAVIZAÇÃO NO EIXO Y (Aqui tá o segredo pro pulo não bugar)
+    -- Ele pega a posição atual e desliza 15% do caminho até a nova altura a cada frame
+    local novaPosicaoY = posicaoAtual.Y + (alvoY - posicaoAtual.Y) * 0.15
+    local novaPosicao = Vector3.new(posicaoAtual.X, novaPosicaoY, posicaoAtual.Z)
+    
+    -- Inteligência da Mira (Cabeça ou Peito)
     local cabeca = alvo:FindFirstChild("Head")
     local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
     local pontoMira = p.Position
 
     if cabeca and peito then
-        -- Se a altura da câmera (novaPosicao.Y) for MAIOR que a cabeça do inimigo, mira na cabeça.
-        -- Se for MENOR ou igual, mira no peito.
-        if novaPosicao.Y > cabeca.Position.Y then
-            pontoMira = cabeca.Position -- Câmera acima da cabeça -> MIRA NA CABEÇA
+        if novaPosicaoY > cabeca.Position.Y then
+            pontoMira = cabeca.Position
         else
-            pontoMira = peito.Position  -- Câmera baixa/na linha do peito -> MIRA NO PEITO
+            pontoMira = peito.Position
         end
-    elseif cabeca then
-        pontoMira = cabeca.Position
-    elseif peito then
-        pontoMira = peito.Position
-    end
+    elseif cabeca then pontoMira = cabeca.Position
+    elseif peito then pontoMira = peito.Position end
     
-    camera.CFrame = CFrame.lookAt(novaPosicao, pontoMira)
+    -- Cria a CFrame perfeita e aplica um Lerp (suaviza a rotação também)
+    local cframeAlvo = CFrame.lookAt(novaPosicao, pontoMira)
+    camera.CFrame = camera.CFrame:Lerp(cframeAlvo, 0.25)
     
     updateHPBar()
 end
@@ -495,12 +497,10 @@ btnEsp.Size = UDim2.new(1,0,0,36); btnEsp.Position = UDim2.new(0,0,0,86); btnEsp
 btnEsp.Text = "👁️ ESP: OFF"; btnEsp.TextColor3 = CORES.texto; btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0,8)
 
--- 🔥 BOTÃO DE MIRA (SÓ INFORMATIVO AGORA)
 local btnMira = Instance.new("TextButton", content)
 btnMira.Size = UDim2.new(1,0,0,36); btnMira.Position = UDim2.new(0,0,0,126); btnMira.BackgroundColor3 = CORES.cOn
 btnMira.Text = "🧠 MIRA: AUTOMÁTICA"; btnMira.TextColor3 = CORES.texto; btnMira.Font = Enum.Font.GothamBold; btnMira.TextSize = 12
 Instance.new("UICorner", btnMira).CornerRadius = UDim.new(0,8)
--- Desativa o clique pra ele não bugar nada, é só visual agora
 btnMira.AutoButtonColor = false
 btnMira.Active = false
 
@@ -622,4 +622,4 @@ end)
 
 player.CharacterRemoving:Connect(function() if ativo then pararLock() end; if espAtivo then toggleESP() end; limparPreview() end)
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | MIRA AUTOMÁTICA ATIVADA")
+print("⚡ EZEK "..VERSAO.." carregado! | Câmera Suave Ativada")
