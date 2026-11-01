@@ -1,4 +1,4 @@
--- EZEK v11.9 - ROTAÇÃO INSTANTÂNEA (Corpo e Câmera sem delay)
+-- EZEK v12.1 - LOCK CONSERTADO (BodyGyro) + Câmera Custom (Analógico) Sem Tremor
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -14,13 +14,14 @@ end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 pcall(function() RunService:UnbindFromRenderStep("EZEK_ROTATE") end)
 
-local VERSAO = "v11.9"
+local VERSAO = "v12.1"
 local MAX_DIST = 500
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 120
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
+local gyro = nil
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
 local alvosESP = {}
@@ -187,8 +188,10 @@ local function pararLock()
     if not ativo then return end
     ativo = false; alvo = nil
     RunService:UnbindFromRenderStep("EZEK_CAM")
-    RunService:UnbindFromRenderStep("EZEK_ROTATE")
+    
+    if gyro then gyro:Destroy(); gyro = nil end
     if hpBar then hpBar:Destroy(); hpBar = nil end
+    
     local c = player.Character
     local h = c and c:FindFirstChildOfClass("Humanoid")
     
@@ -205,36 +208,7 @@ local function pararLock()
     if attBts then attBts() end
 end
 
--- ===================== ROTAÇÃO INSTANTÂNEA DO CORPO =====================
-local function rotacionarCorpo()
-    if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then return end
-    local c = player.Character
-    if not c then return end
-    local r = c:FindFirstChild("HumanoidRootPart")
-    local h = c:FindFirstChildOfClass("Humanoid")
-    local p = pegarParte(alvo)
-    
-    if r and h and p then
-        h.AutoRotate = false
-        
-        -- 🔥 DESTRÓI QUALQUER FORÇA DA FÍSICA QUE TENTE GIRAR DEVAGAR
-        for _, v in pairs(r:GetChildren()) do
-            if v:IsA("BodyGyro") or v:IsA("AlignOrientation") then
-                v:Destroy()
-            end
-        end
-
-        -- 🔥 ROTAÇÃO CRAVADA NO OSSO
-        local dir = p.Position - r.Position
-        local flat = Vector3.new(dir.X, 0, dir.Z)
-        if flat.Magnitude > 0.01 then 
-            r.CFrame = CFrame.lookAt(r.Position, r.Position + flat.Unit)
-        end
-    end
-end
-RunService:BindToRenderStep("EZEK_ROTATE", Enum.RenderPriority.Character.Value - 1, rotacionarCorpo)
-
--- ===================== LOOP LOCK (CÂMERA E MIRA) =====================
+-- ===================== LOOP LOCK =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
     local c = player.Character
@@ -244,14 +218,23 @@ local function atualizar()
     local p = pegarParte(alvo)
     if not r or not h or not p then pararLock() return end
 
+    -- 🔥 Física do corpo usando BodyGyro (Sem Tremor)
+    if gyro then
+        local targetPos = Vector3.new(p.Position.X, r.Position.Y, p.Position.Z)
+        if (targetPos - r.Position).Magnitude > 0.1 then
+            gyro.CFrame = CFrame.lookAt(r.Position, targetPos)
+        end
+    end
+
     if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
+    if h.AutoRotate then h.AutoRotate = false end
     if h.PlatformStand then h.PlatformStand = false end
     if h.WalkSpeed < 16 then h.WalkSpeed = 16 end
 
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
     
-    -- MIRA INTELIGENTE (Analógico)
+    -- MIRA INTELIGENTE
     local cabeca = alvo:FindFirstChild("Head")
     local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
     local pontoMira = p.Position
@@ -262,7 +245,7 @@ local function atualizar()
     elseif cabeca then pontoMira = cabeca.Position
     elseif peito then pontoMira = peito.Position end
     
-    -- Câmera cravada sem delay
+    -- Câmera natural sem delay e sem tremor
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, pontoMira)
     
     updateHPBar()
@@ -276,6 +259,19 @@ local function ligarLock()
     alvo = t; ativo = true
     criarHPBar(t)
     
+    -- 🔥 CRIA O BODYGYRO (Fim do tremor e trava na hora)
+    local r = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if r then
+        for _, v in pairs(r:GetChildren()) do
+            if v:IsA("BodyGyro") then v:Destroy() end
+        end
+        gyro = Instance.new("BodyGyro")
+        gyro.P = 100000
+        gyro.D = 1000
+        gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        gyro.Parent = r
+    end
+
     RunService:UnbindFromRenderStep("EZEK_CAM")
     RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizar)
     if attBts then attBts() end
@@ -631,4 +627,4 @@ end)
 
 player.CharacterRemoving:Connect(function() if ativo then pararLock() end; if espAtivo then toggleESP() end; limparPreview() end)
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Rotação Instantânea Ativada")
+print("⚡ EZEK "..VERSAO.." carregado! | Lock Consertado")
