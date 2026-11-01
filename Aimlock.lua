@@ -1,4 +1,4 @@
--- EZEK v11.4 - CÂMERA SUAVE NO PULO + MIRA INTELIGENTE
+-- EZEK v11.5 - CÂMERA AINDA MAIS ALTA + MIRA INTELIGENTE
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,11 +13,14 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v11.4"
+local VERSAO = "v11.5"
 local MAX_DIST = 500
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 120
-local ALTURA_DA_CAMERA = 3.5 -- Altura da câmera
+
+-- 🔥 AUMENTEI PRA 6.5 (Antes era 3.5)
+-- Se quiser mudar depois: 5.0 (médio), 8.0 (bem alto), 10.0 (lá em cima)
+local ALTURA_DA_CAMERA = 6.5 
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
@@ -202,7 +205,7 @@ local function pararLock()
     if attBts then attBts() end
 end
 
--- ===================== LOOP LOCK (CÂMERA SUAVE) =====================
+-- ===================== LOOP LOCK =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
     local c = player.Character
@@ -217,43 +220,31 @@ local function atualizar()
     if h.PlatformStand then h.PlatformStand = false end
     if h.WalkSpeed < 16 then h.WalkSpeed = 16 end
 
-    -- CÂMERA CUSTOM
-    if camera.CameraType ~= Enum.CameraType.Custom then 
-        camera.CameraType = Enum.CameraType.Custom 
-    end
-    if camera.CameraSubject ~= h then 
-        camera.CameraSubject = h 
-    end
+    if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
+    if camera.CameraSubject ~= h then camera.CameraSubject = h end
 
-    -- Rotação do corpo
     local dir = p.Position - r.Position
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
     
-    -- Posição alta da câmera (baseada no seu Y)
     local posicaoAtual = camera.CFrame.Position
     local alvoY = r.Position.Y + ALTURA_DA_CAMERA
     
-    -- 🔥 SUAVIZAÇÃO NO EIXO Y (Aqui tá o segredo pro pulo não bugar)
-    -- Ele pega a posição atual e desliza 15% do caminho até a nova altura a cada frame
+    -- Suavização (Lerp) no eixo Y pro pulo não bugar
     local novaPosicaoY = posicaoAtual.Y + (alvoY - posicaoAtual.Y) * 0.15
     local novaPosicao = Vector3.new(posicaoAtual.X, novaPosicaoY, posicaoAtual.Z)
     
-    -- Inteligência da Mira (Cabeça ou Peito)
+    -- Inteligência da Mira
     local cabeca = alvo:FindFirstChild("Head")
     local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
     local pontoMira = p.Position
 
     if cabeca and peito then
-        if novaPosicaoY > cabeca.Position.Y then
-            pontoMira = cabeca.Position
-        else
-            pontoMira = peito.Position
-        end
+        if novaPosicaoY > cabeca.Position.Y then pontoMira = cabeca.Position
+        else pontoMira = peito.Position end
     elseif cabeca then pontoMira = cabeca.Position
     elseif peito then pontoMira = peito.Position end
     
-    -- Cria a CFrame perfeita e aplica um Lerp (suaviza a rotação também)
     local cframeAlvo = CFrame.lookAt(novaPosicao, pontoMira)
     camera.CFrame = camera.CFrame:Lerp(cframeAlvo, 0.25)
     
@@ -622,4 +613,4 @@ end)
 
 player.CharacterRemoving:Connect(function() if ativo then pararLock() end; if espAtivo then toggleESP() end; limparPreview() end)
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Câmera Suave Ativada")
+print("⚡ EZEK "..VERSAO.." carregado! | Câmera ultra alta ativada")
