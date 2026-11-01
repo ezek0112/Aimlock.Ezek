@@ -1,4 +1,4 @@
--- EZEK v10.5 - FILTROS DE VOLTA (Players, Dummies, Monstros, Objetos)
+-- EZEK v11.3 - MIRA INTELIGENTE (Câmera alta = Cabeça / Câmera baixa = Peito)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,14 +13,15 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v10.5"
+local VERSAO = "v11.3"
 local MAX_DIST = 500
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 120
+local ALTURA_DA_CAMERA = 3.5 -- Altura da câmera
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
-local filtros = {players=true, dummies=true, monstros=true, objetos=true} -- 🔥 Aqui estão os filtros
+local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
 local alvosESP = {}
 local cache, cacheT = {}, 0
@@ -201,7 +202,7 @@ local function pararLock()
     if attBts then attBts() end
 end
 
--- ===================== LOOP LOCK =====================
+-- ===================== LOOP LOCK (MIRA INTELIGENTE) =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
     local c = player.Character
@@ -215,13 +216,45 @@ local function atualizar()
     if h.AutoRotate then h.AutoRotate = false end
     if h.PlatformStand then h.PlatformStand = false end
     if h.WalkSpeed < 16 then h.WalkSpeed = 16 end
-    if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
-    if camera.CameraSubject ~= h then camera.CameraSubject = h end
 
+    -- CÂMERA CUSTOM
+    if camera.CameraType ~= Enum.CameraType.Custom then 
+        camera.CameraType = Enum.CameraType.Custom 
+    end
+    if camera.CameraSubject ~= h then 
+        camera.CameraSubject = h 
+    end
+
+    -- Rotação do corpo
     local dir = p.Position - r.Position
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
-    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, p.Position)
+    
+    -- Posição alta da câmera
+    local posicaoAtual = camera.CFrame.Position
+    local novaPosicao = Vector3.new(posicaoAtual.X, r.Position.Y + ALTURA_DA_CAMERA, posicaoAtual.Z)
+    
+    -- 🔥 AQUI ESTÁ A INTELIGÊNCIA DA MIRA:
+    local cabeca = alvo:FindFirstChild("Head")
+    local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
+    local pontoMira = p.Position
+
+    if cabeca and peito then
+        -- Se a altura da câmera (novaPosicao.Y) for MAIOR que a cabeça do inimigo, mira na cabeça.
+        -- Se for MENOR ou igual, mira no peito.
+        if novaPosicao.Y > cabeca.Position.Y then
+            pontoMira = cabeca.Position -- Câmera acima da cabeça -> MIRA NA CABEÇA
+        else
+            pontoMira = peito.Position  -- Câmera baixa/na linha do peito -> MIRA NO PEITO
+        end
+    elseif cabeca then
+        pontoMira = cabeca.Position
+    elseif peito then
+        pontoMira = peito.Position
+    end
+    
+    camera.CFrame = CFrame.lookAt(novaPosicao, pontoMira)
+    
     updateHPBar()
 end
 
@@ -419,8 +452,7 @@ sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999999
 sg.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame", sg)
--- 🔥 Aumentei o tamanho da janela pra caber os filtros (de 320 pra 430)
-main.Size = UDim2.new(0, 200, 0, 430); main.Position = UDim2.new(0, 15, 0, 60)
+main.Size = UDim2.new(0, 200, 0, 470); main.Position = UDim2.new(0, 15, 0, 60)
 main.BackgroundColor3 = CORES.fundo; main.BorderSizePixel = 0; main.Active = true; main.ClipsDescendants = true
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 
@@ -463,10 +495,18 @@ btnEsp.Size = UDim2.new(1,0,0,36); btnEsp.Position = UDim2.new(0,0,0,86); btnEsp
 btnEsp.Text = "👁️ ESP: OFF"; btnEsp.TextColor3 = CORES.texto; btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0,8)
 
--- 🔥 ADICIONANDO OS FILTROS DE VOLTA
+-- 🔥 BOTÃO DE MIRA (SÓ INFORMATIVO AGORA)
+local btnMira = Instance.new("TextButton", content)
+btnMira.Size = UDim2.new(1,0,0,36); btnMira.Position = UDim2.new(0,0,0,126); btnMira.BackgroundColor3 = CORES.cOn
+btnMira.Text = "🧠 MIRA: AUTOMÁTICA"; btnMira.TextColor3 = CORES.texto; btnMira.Font = Enum.Font.GothamBold; btnMira.TextSize = 12
+Instance.new("UICorner", btnMira).CornerRadius = UDim.new(0,8)
+-- Desativa o clique pra ele não bugar nada, é só visual agora
+btnMira.AutoButtonColor = false
+btnMira.Active = false
+
 local filtFrame = Instance.new("Frame", content)
 filtFrame.Size = UDim2.new(1,0,0,126)
-filtFrame.Position = UDim2.new(0,0,0,130)
+filtFrame.Position = UDim2.new(0,0,0,170)
 filtFrame.BackgroundColor3 = CORES.topo
 filtFrame.BorderSizePixel = 0
 Instance.new("UICorner", filtFrame).CornerRadius = UDim.new(0,8)
@@ -494,7 +534,6 @@ local function mkCheck(txt, chave, y)
         filtros[chave] = not filtros[chave]
         box.BackgroundColor3 = filtros[chave] and CORES.cOn or CORES.cOff
         box.Text = filtros[chave] and "✓" or ""
-        -- 🔥 Atualiza o ESP na hora se mudar o filtro
         if espAtivo then limparESP(); alvosESP={}; atualizarListaESP() end
     end
     box.MouseButton1Click:Connect(tg)
@@ -506,7 +545,6 @@ mkCheck("🎯 Dummies","dummies",44)
 mkCheck("👹 Monstros","monstros",68)
 mkCheck("📦 Objetos","objetos",92)
 
--- Botão flutuante
 local floatingBtn = Instance.new("TextButton", sg)
 floatingBtn.Size = UDim2.new(0, 44, 0, 44); floatingBtn.Position = UDim2.new(1, -60, 0, 20)
 floatingBtn.BackgroundColor3 = CORES.topo; floatingBtn.Text = "🎯"; floatingBtn.TextSize = 20
@@ -525,8 +563,7 @@ drag(floatingBtn)
 local min = false
 minBtn.MouseButton1Click:Connect(function()
     min = not min
-    -- 🔥 Ajustado pra nova altura de 430
-    main.Size = min and UDim2.new(0,200,0,36) or UDim2.new(0,200,0,430)
+    main.Size = min and UDim2.new(0,200,0,36) or UDim2.new(0,200,0,470)
     content.Visible = not min
     minBtn.Text = min and "+" or "—"
 end)
@@ -585,4 +622,4 @@ end)
 
 player.CharacterRemoving:Connect(function() if ativo then pararLock() end; if espAtivo then toggleESP() end; limparPreview() end)
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | P=Lock O=ESP | R1+R2=Lock L1+L2=ESP")
+print("⚡ EZEK "..VERSAO.." carregado! | MIRA AUTOMÁTICA ATIVADA")
