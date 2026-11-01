@@ -1,4 +1,4 @@
--- EZEK v11.5 - CÂMERA AINDA MAIS ALTA + MIRA INTELIGENTE
+-- EZEK v11.6 - CÂMERA ULTRA ALTA + ZERO DELAY (Cola no inimigo na hora)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,14 +13,11 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v11.5"
+local VERSAO = "v11.6"
 local MAX_DIST = 500
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 120
-
--- 🔥 AUMENTEI PRA 6.5 (Antes era 3.5)
--- Se quiser mudar depois: 5.0 (médio), 8.0 (bem alto), 10.0 (lá em cima)
-local ALTURA_DA_CAMERA = 6.5 
+local ALTURA_DA_CAMERA = 6.5 -- Câmera alta pra caralho pra não tampar a visão
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
@@ -205,7 +202,7 @@ local function pararLock()
     if attBts then attBts() end
 end
 
--- ===================== LOOP LOCK =====================
+-- ===================== LOOP LOCK (ZERO DELAY) =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
     local c = player.Character
@@ -227,26 +224,23 @@ local function atualizar()
     local flat = Vector3.new(dir.X, 0, dir.Z)
     if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
     
+    -- 🔥 ZERO DELAY: Pega a posição X e Z atual da câmera, mas o Y é cravado em cima do seu boneco
     local posicaoAtual = camera.CFrame.Position
-    local alvoY = r.Position.Y + ALTURA_DA_CAMERA
+    local novaPosicao = Vector3.new(posicaoAtual.X, r.Position.Y + ALTURA_DA_CAMERA, posicaoAtual.Z)
     
-    -- Suavização (Lerp) no eixo Y pro pulo não bugar
-    local novaPosicaoY = posicaoAtual.Y + (alvoY - posicaoAtual.Y) * 0.15
-    local novaPosicao = Vector3.new(posicaoAtual.X, novaPosicaoY, posicaoAtual.Z)
-    
-    -- Inteligência da Mira
+    -- Inteligência da Mira (Cabeça ou Peito)
     local cabeca = alvo:FindFirstChild("Head")
     local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
     local pontoMira = p.Position
 
     if cabeca and peito then
-        if novaPosicaoY > cabeca.Position.Y then pontoMira = cabeca.Position
+        if novaPosicao.Y > cabeca.Position.Y then pontoMira = cabeca.Position
         else pontoMira = peito.Position end
     elseif cabeca then pontoMira = cabeca.Position
     elseif peito then pontoMira = peito.Position end
     
-    local cframeAlvo = CFrame.lookAt(novaPosicao, pontoMira)
-    camera.CFrame = camera.CFrame:Lerp(cframeAlvo, 0.25)
+    -- 🔥 AQUI: Sem Lerp, sem delay. Cravado na hora.
+    camera.CFrame = CFrame.lookAt(novaPosicao, pontoMira)
     
     updateHPBar()
 end
@@ -613,4 +607,4 @@ end)
 
 player.CharacterRemoving:Connect(function() if ativo then pararLock() end; if espAtivo then toggleESP() end; limparPreview() end)
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Câmera ultra alta ativada")
+print("⚡ EZEK "..VERSAO.." carregado! | Câmera alta + Zero Delay")
