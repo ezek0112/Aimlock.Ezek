@@ -1,4 +1,4 @@
--- EZEK v11.6 - CÂMERA ULTRA ALTA + ZERO DELAY (Cola no inimigo na hora)
+-- EZEK v11.9 - ROTAÇÃO INSTANTÂNEA (Corpo e Câmera sem delay)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,12 +12,12 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
     end
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
+pcall(function() RunService:UnbindFromRenderStep("EZEK_ROTATE") end)
 
-local VERSAO = "v11.6"
+local VERSAO = "v11.9"
 local MAX_DIST = 500
 local INTERVALO_LISTA = 1
 local FOV_GRAUS = 120
-local ALTURA_DA_CAMERA = 6.5 -- Câmera alta pra caralho pra não tampar a visão
 
 local ativo, alvo, espAtivo = false, nil, false
 local hpBar = nil
@@ -187,14 +187,17 @@ local function pararLock()
     if not ativo then return end
     ativo = false; alvo = nil
     RunService:UnbindFromRenderStep("EZEK_CAM")
+    RunService:UnbindFromRenderStep("EZEK_ROTATE")
     if hpBar then hpBar:Destroy(); hpBar = nil end
     local c = player.Character
     local h = c and c:FindFirstChildOfClass("Humanoid")
+    
     if h then
         h.AutoRotate = true
         h.CameraOffset = Vector3.new(0,0,0)
         h.PlatformStand = false
     end
+    
     pcall(function()
         camera.CameraType = Enum.CameraType.Custom
         if h then camera.CameraSubject = h end
@@ -202,7 +205,36 @@ local function pararLock()
     if attBts then attBts() end
 end
 
--- ===================== LOOP LOCK (ZERO DELAY) =====================
+-- ===================== ROTAÇÃO INSTANTÂNEA DO CORPO =====================
+local function rotacionarCorpo()
+    if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then return end
+    local c = player.Character
+    if not c then return end
+    local r = c:FindFirstChild("HumanoidRootPart")
+    local h = c:FindFirstChildOfClass("Humanoid")
+    local p = pegarParte(alvo)
+    
+    if r and h and p then
+        h.AutoRotate = false
+        
+        -- 🔥 DESTRÓI QUALQUER FORÇA DA FÍSICA QUE TENTE GIRAR DEVAGAR
+        for _, v in pairs(r:GetChildren()) do
+            if v:IsA("BodyGyro") or v:IsA("AlignOrientation") then
+                v:Destroy()
+            end
+        end
+
+        -- 🔥 ROTAÇÃO CRAVADA NO OSSO
+        local dir = p.Position - r.Position
+        local flat = Vector3.new(dir.X, 0, dir.Z)
+        if flat.Magnitude > 0.01 then 
+            r.CFrame = CFrame.lookAt(r.Position, r.Position + flat.Unit)
+        end
+    end
+end
+RunService:BindToRenderStep("EZEK_ROTATE", Enum.RenderPriority.Character.Value - 1, rotacionarCorpo)
+
+-- ===================== LOOP LOCK (CÂMERA E MIRA) =====================
 local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
     local c = player.Character
@@ -213,34 +245,25 @@ local function atualizar()
     if not r or not h or not p then pararLock() return end
 
     if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
-    if h.AutoRotate then h.AutoRotate = false end
     if h.PlatformStand then h.PlatformStand = false end
     if h.WalkSpeed < 16 then h.WalkSpeed = 16 end
 
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
-
-    local dir = p.Position - r.Position
-    local flat = Vector3.new(dir.X, 0, dir.Z)
-    if flat.Magnitude > 0.01 then r.CFrame = CFrame.new(r.Position, r.Position + flat.Unit) end
     
-    -- 🔥 ZERO DELAY: Pega a posição X e Z atual da câmera, mas o Y é cravado em cima do seu boneco
-    local posicaoAtual = camera.CFrame.Position
-    local novaPosicao = Vector3.new(posicaoAtual.X, r.Position.Y + ALTURA_DA_CAMERA, posicaoAtual.Z)
-    
-    -- Inteligência da Mira (Cabeça ou Peito)
+    -- MIRA INTELIGENTE (Analógico)
     local cabeca = alvo:FindFirstChild("Head")
     local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
     local pontoMira = p.Position
 
     if cabeca and peito then
-        if novaPosicao.Y > cabeca.Position.Y then pontoMira = cabeca.Position
+        if camera.CFrame.Position.Y > cabeca.Position.Y then pontoMira = cabeca.Position
         else pontoMira = peito.Position end
     elseif cabeca then pontoMira = cabeca.Position
     elseif peito then pontoMira = peito.Position end
     
-    -- 🔥 AQUI: Sem Lerp, sem delay. Cravado na hora.
-    camera.CFrame = CFrame.lookAt(novaPosicao, pontoMira)
+    -- Câmera cravada sem delay
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, pontoMira)
     
     updateHPBar()
 end
@@ -252,6 +275,7 @@ local function ligarLock()
     if previewEl then limparPreview() end
     alvo = t; ativo = true
     criarHPBar(t)
+    
     RunService:UnbindFromRenderStep("EZEK_CAM")
     RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizar)
     if attBts then attBts() end
@@ -607,4 +631,4 @@ end)
 
 player.CharacterRemoving:Connect(function() if ativo then pararLock() end; if espAtivo then toggleESP() end; limparPreview() end)
 attBts()
-print("⚡ EZEK "..VERSAO.." carregado! | Câmera alta + Zero Delay")
+print("⚡ EZEK "..VERSAO.." carregado! | Rotação Instantânea Ativada")
