@@ -1,18 +1,22 @@
--- EZEK v18.0 - APENAS LOCK E ESP (Câmera Fixa, Sem Extras)
+-- EZEK v18.2 - CÂMERA COM INCLINAÇÃO (Boneco não atrapalha)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- Variáveis
+-- 🔥 AQUI VOCÊ AJUSTA A INCLINAÇÃO
+-- 1.0 = Mira normal na cabeça
+-- 2.0 = Mira um pouco mais pra cima (tira o boneco da frente)
+-- 3.0 = Mira bem pra cima
+local INCLINACAO = 2.5 
+
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local FOV_GRAUS = 120
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
 
--- Funções Base
 local function getVida(m)
     local h = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
     if h then return h.Health, h.MaxHealth end
@@ -20,21 +24,17 @@ local function getVida(m)
     if type(hp) == "number" then return hp, 100 end
     return nil,nil
 end
-
 local function temVida(m) local hp = getVida(m) return hp and hp > 0 end
-
 local function pegarParte(m)
     if not m then return nil end
     return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
 end
-
 local function getTipo(m)
     if Players:GetPlayerFromCharacter(m) then return "players" end
     local n = string.lower(m.Name)
     if n:find("dummy") or n:find("training") then return "dummies" end
     return "monstros"
 end
-
 local function getTodos()
     local lista = {}
     for _, p in pairs(Players:GetPlayers()) do
@@ -94,15 +94,11 @@ local function atualizarLock()
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
 
-    local cabeca = alvo:FindFirstChild("Head")
-    local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
-    local miraPos = p.Position
-
-    if cabeca and peito then
-        if camera.CFrame.Position.Y > cabeca.Position.Y then miraPos = cabeca.Position else miraPos = peito.Position end
-    elseif cabeca then miraPos = cabeca.Position
-    elseif peito then miraPos = peito.Position end
-
+    -- 🔥 A MÁGICA DA INCLINAÇÃO AQUI:
+    -- Pega o ponto do inimigo e sobe a mira em X studs (dependendo do que você colocou no INCLINACAO)
+    local miraPos = p.Position + Vector3.new(0, INCLINACAO, 0)
+    
+    -- Mantém a câmera no exato lugar que o jogo colocou, só muda pra onde ela olha
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
 end
 
@@ -179,15 +175,14 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- UI (SÓ LOCK E ESP)
+-- UI
 local sg = Instance.new("ScreenGui", player.PlayerGui)
 sg.Name = "EZEK_HUB_v18"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
 main.Size = UDim2.new(0, 180, 0, 130)
 main.Position = UDim2.new(0, 20, 0.5, -65)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-main.BorderSizePixel = 0
-main.Active = true
+main.BorderSizePixel = 0; main.Active = true
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
 local topBar = Instance.new("Frame", main)
@@ -196,7 +191,7 @@ Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 8)
 
 local title = Instance.new("TextLabel", topBar)
 title.Size = UDim2.new(1, 0, 1, 0); title.BackgroundTransparency = 1
-title.Text = "EZEK v18.0"; title.TextColor3 = Color3.fromRGB(0, 255, 255); title.Font = Enum.Font.Code; title.TextSize = 14
+title.Text = "EZEK v18.2"; title.TextColor3 = Color3.fromRGB(0, 255, 255); title.Font = Enum.Font.Code; title.TextSize = 14
 
 local closeBtn = Instance.new("TextButton", topBar)
 closeBtn.Size = UDim2.new(0, 30, 1, 0); closeBtn.Position = UDim2.new(1, -30, 0, 0)
@@ -204,8 +199,7 @@ closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); closeBtn.Text = "X"; cl
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 closeBtn.MouseButton1Click:Connect(function() sg:Destroy() end)
 
--- Arrastar
-local dragging, dragInput, dragStart, startPos
+local dragging, dragStart, startPos
 topBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true; dragStart = input.Position; startPos = main.Position
@@ -222,17 +216,12 @@ end)
 local function createToggle(text, yPos, callback)
     local state = false
     local btn = Instance.new("TextButton", main)
-    btn.Size = UDim2.new(1, -20, 0, 35)
-    btn.Position = UDim2.new(0, 10, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    btn.Text = text .. " [OFF]"
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.Code
-    btn.TextSize = 12
+    btn.Size = UDim2.new(1, -20, 0, 35); btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45); btn.Text = text .. " [OFF]"
+    btn.TextColor3 = Color3.new(1,1,1); btn.Font = Enum.Font.Code; btn.TextSize = 12
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
     btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.Text = text .. (state and " [ON]" or " [OFF]")
+        state = not state; btn.Text = text .. (state and " [ON]" or " [OFF]")
         btn.BackgroundColor3 = state and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(45, 45, 45)
         callback(state)
     end)
@@ -241,11 +230,10 @@ end
 createToggle("🔒 LOCK (AIMBOT)", 40, function(state) if state ~= ativo then toggleLock() end end)
 createToggle("👁️ ESP COMPLETO", 80, function(state) if state ~= espAtivo then toggleESP() end end)
 
--- Teclas de Atalho
 UIS.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.P then toggleLock() end
     if input.KeyCode == Enum.KeyCode.O then toggleESP() end
 end)
 
-print("⚡ EZEK v18.0 Carregado! Só Lock e ESP.")
+print("⚡ EZEK v18.2 Carregado! Inclinação ativa.")
