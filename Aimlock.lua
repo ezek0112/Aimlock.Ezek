@@ -1,64 +1,141 @@
--- EZEK v18.2 - CÂMERA COM INCLINAÇÃO (Boneco não atrapalha)
+-- EZEK v19.0 - Base v12.1 Restaurada + Inclinação de Câmera
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- 🔥 AQUI VOCÊ AJUSTA A INCLINAÇÃO
--- 1.0 = Mira normal na cabeça
--- 2.0 = Mira um pouco mais pra cima (tira o boneco da frente)
--- 3.0 = Mira bem pra cima
-local INCLINACAO = 2.5 
+-- 🔥 AQUI VOCÊ AJUSTA A INCLINAÇÃO DA CÂMERA:
+-- 1.0 = Mira normal
+-- 3.0 = Mira bem pra cima (tira o boneco da frente)
+local INCLINACAO = 3.0 
+
+-- 🔥 FAXINEIRO
+for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
+    if obj:IsA("ScreenGui") and (string.find(obj.Name, "EZEK") or string.find(obj.Name, "Aimlock")) then
+        obj:Destroy()
+    end
+end
+pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
+pcall(function() RunService:UnbindFromRenderStep("EZEK_ROTATE") end)
+
+local VERSAO = "v19.0"
+local MAX_DIST = 500
+local INTERVALO_LISTA = 1
+local FOV_GRAUS = 120
 
 local ativo, alvo, espAtivo = false, nil, false
+local hpBar = nil
 local gyro = nil
-local FOV_GRAUS = 120
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local espEl = {}
+local alvosESP = {}
+local cache, cacheT = {}, 0
+
+local previewEl = nil
+local previewAlvo = nil
+local attBts
+local limparPreview
+
+local lastEspDraw = 0
+local lastPreviewDraw = 0
+
+local r1, r2, l1, l2 = false, false, false, false
+local uL, uE = 0, 0
+
+-- ===================== VIDA / UTIL =====================
+local NV = {"Health","HP","health","hp","Vida","vida","Life","life","Hp","HpAtual","HealthPoints","CurrentHealth","HpMax","MaxHp"}
+local NM = {"MaxHealth","MaxHP","maxhealth","MaxHp","HPMAX","VidaMaxima","MaxVida","TotalHealth","MaxLife","HpMax"}
+
+local function getAtrib(m, lista)
+    if not m then return nil end
+    for _, n in ipairs(lista) do
+        local v = m:GetAttribute(n)
+        if type(v)=="number" and v>0 then return v end
+    end
+    for _, o in ipairs(m:GetChildren()) do
+        if (o:IsA("NumberValue") or o:IsA("IntValue")) then
+            for _, n in ipairs(lista) do if o.Name==n then return o.Value end end
+        end
+    end
+end
 
 local function getVida(m)
+    if not m then return nil,nil end
     local h = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
     if h then return h.Health, h.MaxHealth end
-    local hp = m:GetAttribute("Health") or m:GetAttribute("HP") or m:GetAttribute("Vida")
-    if type(hp) == "number" then return hp, 100 end
+    local hp = getAtrib(m, NV)
+    if hp then return hp, getAtrib(m,NM) or 100 end
     return nil,nil
 end
-local function temVida(m) local hp = getVida(m) return hp and hp > 0 end
+
+local function temVida(m)
+    local hp = getVida(m)
+    return hp and hp > 0
+end
+
 local function pegarParte(m)
     if not m then return nil end
-    return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
+    if m:IsA("BasePart") then return m end
+    return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart")
+        or m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso")
+        or m:FindFirstChild("Root") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 end
+
 local function getTipo(m)
+    if not m then return "monstros" end
     if Players:GetPlayerFromCharacter(m) then return "players" end
-    local n = string.lower(m.Name)
-    if n:find("dummy") or n:find("training") then return "dummies" end
-    return "monstros"
+    if m:FindFirstChildOfClass("Humanoid") or temVida(m) then
+        local n = string.lower(m.Name)
+        if n:find("dummy") or n:find("training") then return "dummies" end
+        return "monstros"
+    end
+    return "objetos"
 end
+
 local function getTodos()
-    local lista = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player and p.Character and temVida(p.Character) then table.insert(lista, p.Character) end
+    local t = tick()
+    if t - cacheT < INTERVALO_LISTA and #cache > 0 then
+        local v = {}
+        for _, m in ipairs(cache) do if m and m.Parent then table.insert(v,m) end end
+        return v
     end
-    for _, v in pairs(workspace:GetChildren()) do
-        if v:IsA("Model") and v ~= player.Character and temVida(v) and pegarParte(v) then table.insert(lista, v) end
+    local lista, vistos = {}, {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and temVida(p.Character) then
+            table.insert(lista,p.Character); vistos[p.Character]=true
+        end
     end
+    local function proc(pasta, prof)
+        if prof > 5 then return end
+        for _, o in ipairs(pasta:GetChildren()) do
+            if o:IsA("Model") and not vistos[o] and o ~= player.Character and temVida(o) and pegarParte(o) then
+                table.insert(lista,o); vistos[o]=true
+            end
+            if o:IsA("Folder") or o:IsA("Model") then proc(o, prof+1) end
+        end
+    end
+    proc(workspace, 0)
+    cache = lista; cacheT = t
     return lista
 end
 
--- LOCK
 local function acharAlvo()
-    local melhor, angMin = nil, math.rad(FOV_GRAUS)
+    local melhor, melhorAng = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
     local cl = camera.CFrame.LookVector
-    for _, m in pairs(getTodos()) do
-        if filtros[getTipo(m)] and temVida(m) then
-            local p = pegarParte(m)
-            if p then
-                local dist = (p.Position - cp).Magnitude
-                if dist > 2 then
-                    local ang = math.acos(math.clamp(cl:Dot((p.Position - cp).Unit), -1, 1))
-                    if ang < angMin then angMin = ang; melhor = m end
+    for _, m in ipairs(getTodos()) do
+        if m ~= player.Character and filtros[getTipo(m)] and temVida(m) then
+            local parte = pegarParte(m)
+            if parte then
+                local dist = (parte.Position - cp).Magnitude
+                if dist > 0.5 then 
+                    local dir = (parte.Position - cp).Unit
+                    local ang = math.acos(math.clamp(cl:Dot(dir),-1,1))
+                    if ang < melhorAng then
+                        melhorAng = ang
+                        melhor = m
+                    end
                 end
             end
         end
@@ -66,174 +143,346 @@ local function acharAlvo()
     return melhor
 end
 
+-- ===================== HP BAR (LOCK) =====================
+local function criarHPBar(m)
+    if hpBar and hpBar.Parent then hpBar:Destroy() end
+    local root = pegarParte(m)
+    if not root then return end
+    local bb = Instance.new("BillboardGui", m)
+    bb.Adornee = root; bb.Size = UDim2.new(0, 150, 0, 45); bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true
+    hpBar = bb
+    
+    local nome = Instance.new("TextLabel", bb)
+    nome.Name = "N"; nome.Size = UDim2.new(1,0,0,14); nome.Position = UDim2.new(0,0,0,0)
+    nome.BackgroundTransparency = 1; nome.Text = m.Name; nome.TextColor3 = Color3.new(1,1,1)
+    nome.TextStrokeTransparency = 0; nome.Font = Enum.Font.GothamBold; nome.TextSize = 12
+    nome.TextXAlignment = Enum.TextXAlignment.Center
+
+    local bg = Instance.new("Frame", bb)
+    bg.Name = "B"; bg.Size = UDim2.new(1,0,0,10); bg.Position = UDim2.new(0,0,0,16)
+    bg.BackgroundColor3 = Color3.fromRGB(20,20,20); bg.BorderSizePixel = 0
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1,0)
+    
+    local fill = Instance.new("Frame", bg)
+    fill.Name = "F"; fill.Size = UDim2.new(1,0,1,0); fill.BackgroundColor3 = Color3.fromRGB(0,200,0); fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+
+    local hpText = Instance.new("TextLabel", bb)
+    hpText.Name = "H"; hpText.Size = UDim2.new(1,0,0,14); hpText.Position = UDim2.new(0,0,0,28)
+    hpText.BackgroundTransparency = 1; hpText.TextColor3 = Color3.new(1,1,1)
+    hpText.TextStrokeTransparency = 0; hpText.Font = Enum.Font.GothamBold; hpText.TextSize = 11
+    hpText.TextXAlignment = Enum.TextXAlignment.Center
+end
+
+local function updateHPBar()
+    if not hpBar or not alvo then return end
+    local hp, mx = getVida(alvo)
+    if not hp then return end
+    local pct = math.clamp(hp/(mx or 100),0,1)
+    local f = hpBar:FindFirstChild("B") and hpBar.B:FindFirstChild("F")
+    if f then
+        f.Size = UDim2.new(pct,0,1,0)
+        f.BackgroundColor3 = pct>0.6 and Color3.fromRGB(0,200,0) or (pct>0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,50,50))
+    end
+    local hTxt = hpBar:FindFirstChild("H")
+    if hTxt then hTxt.Text = string.format("%d/%d", math.floor(hp), math.floor(mx or 100)) end
+end
+
+-- ===================== PARAR LOCK =====================
 local function pararLock()
     if not ativo then return end
     ativo = false; alvo = nil
     RunService:UnbindFromRenderStep("EZEK_CAM")
+    
     if gyro then gyro:Destroy(); gyro = nil end
-    local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if h then h.AutoRotate = true; h.CameraOffset = Vector3.new(0,0,0) end
-    camera.CameraType = Enum.CameraType.Custom
-    if h then camera.CameraSubject = h end
+    if hpBar then hpBar:Destroy(); hpBar = nil end
+    
+    local c = player.Character
+    local h = c and c:FindFirstChildOfClass("Humanoid")
+    
+    if h then
+        h.AutoRotate = true
+        h.CameraOffset = Vector3.new(0,0,0)
+        h.PlatformStand = false
+    end
+    
+    pcall(function()
+        camera.CameraType = Enum.CameraType.Custom
+        if h then camera.CameraSubject = h end
+    end)
+    if attBts then attBts() end
 end
 
-local function atualizarLock()
+-- ===================== LOOP LOCK (COM INCLINAÇÃO) =====================
+local function atualizar()
     if not ativo or not alvo or not alvo.Parent or not temVida(alvo) then pararLock() return end
-    local char = player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local h = char and char:FindFirstChildOfClass("Humanoid")
+    local c = player.Character
+    if not c then pararLock() return end
+    local r = c:FindFirstChild("HumanoidRootPart")
+    local h = c:FindFirstChildOfClass("Humanoid")
     local p = pegarParte(alvo)
-    if not root or not h or not p then pararLock() return end
+    if not r or not h or not p then pararLock() return end
 
     if gyro then
-        local targetPos = Vector3.new(p.Position.X, root.Position.Y, p.Position.Z)
-        if (targetPos - root.Position).Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, targetPos) end
+        local targetPos = Vector3.new(p.Position.X, r.Position.Y, p.Position.Z)
+        if (targetPos - r.Position).Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(r.Position, targetPos) end
     end
 
-    h.AutoRotate = false
+    if h.CameraOffset.Magnitude > 0.01 then h.CameraOffset = Vector3.new(0,0,0) end
+    if h.AutoRotate then h.AutoRotate = false end
+    if h.PlatformStand then h.PlatformStand = false end
+    if h.WalkSpeed < 16 then h.WalkSpeed = 16 end
+
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
-
-    -- 🔥 A MÁGICA DA INCLINAÇÃO AQUI:
-    -- Pega o ponto do inimigo e sobe a mira em X studs (dependendo do que você colocou no INCLINACAO)
-    local miraPos = p.Position + Vector3.new(0, INCLINACAO, 0)
     
-    -- Mantém a câmera no exato lugar que o jogo colocou, só muda pra onde ela olha
-    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
+    -- MIRA INTELIGENTE + INCLINAÇÃO
+    local cabeca = alvo:FindFirstChild("Head")
+    local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
+    local pontoMira = p.Position
+
+    if cabeca and peito then
+        if camera.CFrame.Position.Y > cabeca.Position.Y then pontoMira = cabeca.Position
+        else pontoMira = peito.Position end
+    elseif cabeca then pontoMira = cabeca.Position
+    elseif peito then pontoMira = peito.Position end
+    
+    -- 🔥 AQUI APLICA A INCLINAÇÃO (Sobe a mira em X studs)
+    pontoMira = pontoMira + Vector3.new(0, INCLINACAO, 0)
+    
+    -- Câmera natural, só rotaciona
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, pontoMira)
+    
+    updateHPBar()
 end
 
-local function toggleLock()
-    if ativo then pararLock() else
-        local t = acharAlvo()
-        if not t then return end
-        alvo = t; ativo = true
-        local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            if gyro then gyro:Destroy() end
-            gyro = Instance.new("BodyGyro", root)
-            gyro.P = 100000; gyro.D = 1000; gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+local function ligarLock()
+    if ativo then return end
+    local t = previewAlvo or acharAlvo()
+    if not t then print("❌ Sem alvo") return end
+    if previewEl then limparPreview() end
+    alvo = t; ativo = true
+    criarHPBar(t)
+    
+    local r = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if r then
+        for _, v in pairs(r:GetChildren()) do
+            if v:IsA("BodyGyro") then v:Destroy() end
         end
-        RunService:UnbindFromRenderStep("EZEK_CAM")
-        RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizarLock)
+        gyro = Instance.new("BodyGyro")
+        gyro.P = 100000
+        gyro.D = 1000
+        gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        gyro.Parent = r
     end
+
+    RunService:UnbindFromRenderStep("EZEK_CAM")
+    RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizar)
+    if attBts then attBts() end
 end
 
--- ESP
-local espGui = Instance.new("ScreenGui", player.PlayerGui)
-espGui.Name = "EZEK_ESP_Hub"; espGui.ResetOnSpawn = false; espGui.IgnoreGuiInset = true
+-- ===================== ESP =====================
+local espGui = Instance.new("ScreenGui")
+espGui.Name = "EZEK_ESP_"..VERSAO
+espGui.ResetOnSpawn = false; espGui.IgnoreGuiInset = true; espGui.DisplayOrder = 999998
+espGui.Parent = player:WaitForChild("PlayerGui")
+
+local function cor(tipo)
+    if tipo=="players" then return Color3.fromRGB(255,70,70) 
+    elseif tipo=="dummies" then return Color3.fromRGB(255,200,0)
+    else return Color3.fromRGB(70,150,255) end
+end
 
 local function criarESP(m)
     if espEl[m] then return end
-    local cont = Instance.new("Frame", espGui); cont.BackgroundTransparency = 1
-    local box = Instance.new("Frame", cont); box.BackgroundTransparency = 1
-    local st = Instance.new("UIStroke", box); st.Color = Color3.fromRGB(0, 255, 255); st.Thickness = 1.5
-    local nm = Instance.new("TextLabel", cont); nm.BackgroundTransparency = 1; nm.Font = Enum.Font.GothamBold; nm.TextSize = 11; nm.TextColor3 = st.Color; nm.TextStrokeTransparency = 0; nm.Text = m.Name
-    local hp = Instance.new("TextLabel", cont); hp.BackgroundTransparency = 1; hp.Font = Enum.Font.GothamBold; hp.TextSize = 10; hp.TextColor3 = Color3.fromRGB(0,255,0); hp.TextStrokeTransparency = 0
+    local cont = Instance.new("Frame", espGui)
+    cont.BackgroundTransparency = 1; cont.BorderSizePixel = 0
+    local box = Instance.new("Frame", cont)
+    box.BackgroundTransparency = 1; box.BorderSizePixel = 0
+    local st = Instance.new("UIStroke", box); st.Color = cor(getTipo(m)); st.Thickness = 1.5; st.Transparency = 0.2
+    
+    local nm = Instance.new("TextLabel", cont)
+    nm.BackgroundTransparency = 1; nm.Font = Enum.Font.GothamBold; nm.TextSize = 11
+    nm.TextColor3 = st.Color; nm.TextStrokeTransparency = 0; nm.Text = m.Name
+    nm.TextXAlignment = Enum.TextXAlignment.Center
+    
+    local hp = Instance.new("TextLabel", cont)
+    hp.BackgroundTransparency = 1; hp.Font = Enum.Font.GothamBold; hp.TextSize = 10
+    hp.TextColor3 = Color3.fromRGB(0,255,0); hp.TextStrokeTransparency = 0
+    hp.TextXAlignment = Enum.TextXAlignment.Center
+    
     espEl[m] = {cont=cont, box=box, st=st, nm=nm, hp=hp}
 end
 
-local function toggleESP()
-    espAtivo = not espAtivo
-    if not espAtivo then 
-        for _, d in pairs(espEl) do d.cont:Destroy() end
-        espEl = {}
+local function limparESP()
+    for _, d in pairs(espEl) do if d.cont then d.cont:Destroy() end end
+    espEl = {}
+end
+
+local function atualizarListaESP()
+    local lista = {}
+    for _, m in ipairs(getTodos()) do
+        if filtros[getTipo(m)] and pegarParte(m) then table.insert(lista, {model = m, parte = pegarParte(m)}) end
+    end
+    alvosESP = lista
+    for _, t in ipairs(alvosESP) do if not espEl[t.model] then criarESP(t.model) end end
+    for m, d in pairs(espEl) do
+        local achou = false
+        for _, t in ipairs(alvosESP) do if t.model == m then achou = true break end end
+        if not achou or not m.Parent then d.cont:Destroy(); espEl[m] = nil end
     end
 end
 
-RunService.RenderStepped:Connect(function()
+local function desenharESP()
     if not espAtivo then return end
-    local char = player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    
-    for _, m in pairs(getTodos()) do
-        if filtros[getTipo(m)] and temVida(m) then
-            local p = pegarParte(m)
-            if p then
-                if not espEl[m] then criarESP(m) end
-                local d = espEl[m]
-                local top = camera:WorldToViewportPoint(p.Position + Vector3.new(0,2.5,0))
-                local bot = camera:WorldToViewportPoint(p.Position - Vector3.new(0,2.5,0))
-                
-                if top.Z > 0 and bot.Z > 0 then
-                    local alt = math.abs(top.Y - bot.Y)
-                    if alt > 5 then
-                        local lar = alt * 0.55
-                        local cx = (top.X + bot.X) / 2
-                        local cy = (top.Y + bot.Y) / 2
-                        d.cont.Visible = true
-                        d.box.Size = UDim2.new(0, lar, 0, alt)
-                        d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
-                        d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 16); d.nm.Size = UDim2.new(0, 150, 0, 14)
-                        d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2); d.hp.Size = UDim2.new(0, 150, 0, 14)
-                        local hVal, hMax = getVida(m)
-                        if hVal then d.hp.Text = string.format("%d/%d | %dm", math.floor(hVal), math.floor(hMax or 100), math.floor((p.Position - root.Position).Magnitude)) end
+    if tick() - lastEspDraw < 0.06 then return end
+    lastEspDraw = tick()
+
+    local r = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not r then return end
+    local mp = r.Position
+    local cam = camera
+
+    for _, t in ipairs(alvosESP) do
+        local m = t.model
+        local parte = t.parte
+        local d = espEl[m]
+        if d then
+            if not m.Parent or not parte or not parte.Parent or not temVida(m) then
+                d.cont.Visible = false
+            else
+                local dist = (parte.Position - mp).Magnitude
+                if dist <= MAX_DIST then
+                    local top = cam:WorldToViewportPoint(parte.Position + Vector3.new(0,2.5,0))
+                    local bot = cam:WorldToViewportPoint(parte.Position - Vector3.new(0,2.5,0))
+                    if top.Z > 0 and bot.Z > 0 then
+                        local alt = math.abs(top.Y - bot.Y)
+                        if alt > 5 then
+                            local lar = alt * 0.55
+                            local cx = (top.X + bot.X) / 2
+                            local cy = (top.Y + bot.Y) / 2
+                            d.cont.Visible = true
+                            
+                            d.box.Size = UDim2.new(0, lar, 0, alt)
+                            d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
+                            
+                            d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 16)
+                            d.nm.Size = UDim2.new(0, 150, 0, 14)
+                            
+                            d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2)
+                            d.hp.Size = UDim2.new(0, 150, 0, 14)
+                            
+                            local hp, mx = getVida(m)
+                            if hp then
+                                local pct = hp/(mx or 100)
+                                d.hp.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx or 100), math.floor(dist))
+                                d.hp.TextColor3 = pct>0.6 and Color3.fromRGB(0,255,0) or (pct>0.3 and Color3.fromRGB(255,220,0) or Color3.fromRGB(255,80,80))
+                            end
+                        else d.cont.Visible = false end
                     else d.cont.Visible = false end
                 else d.cont.Visible = false end
             end
         end
     end
-end)
-
--- UI
-local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_HUB_v18"; sg.ResetOnSpawn = false
-local main = Instance.new("Frame", sg)
-main.Size = UDim2.new(0, 180, 0, 130)
-main.Position = UDim2.new(0, 20, 0.5, -65)
-main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-main.BorderSizePixel = 0; main.Active = true
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
-
-local topBar = Instance.new("Frame", main)
-topBar.Size = UDim2.new(1, 0, 0, 30); topBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 8)
-
-local title = Instance.new("TextLabel", topBar)
-title.Size = UDim2.new(1, 0, 1, 0); title.BackgroundTransparency = 1
-title.Text = "EZEK v18.2"; title.TextColor3 = Color3.fromRGB(0, 255, 255); title.Font = Enum.Font.Code; title.TextSize = 14
-
-local closeBtn = Instance.new("TextButton", topBar)
-closeBtn.Size = UDim2.new(0, 30, 1, 0); closeBtn.Position = UDim2.new(1, -30, 0, 0)
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); closeBtn.Text = "X"; closeBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
-closeBtn.MouseButton1Click:Connect(function() sg:Destroy() end)
-
-local dragging, dragStart, startPos
-topBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true; dragStart = input.Position; startPos = main.Position
-        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
-    end
-end)
-UIS.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-local function createToggle(text, yPos, callback)
-    local state = false
-    local btn = Instance.new("TextButton", main)
-    btn.Size = UDim2.new(1, -20, 0, 35); btn.Position = UDim2.new(0, 10, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45); btn.Text = text .. " [OFF]"
-    btn.TextColor3 = Color3.new(1,1,1); btn.Font = Enum.Font.Code; btn.TextSize = 12
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-    btn.MouseButton1Click:Connect(function()
-        state = not state; btn.Text = text .. (state and " [ON]" or " [OFF]")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(45, 45, 45)
-        callback(state)
-    end)
 end
 
-createToggle("🔒 LOCK (AIMBOT)", 40, function(state) if state ~= ativo then toggleLock() end end)
-createToggle("👁️ ESP COMPLETO", 80, function(state) if state ~= espAtivo then toggleESP() end end)
+local espListTh = nil
+local espDrawConn = nil
 
-UIS.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.P then toggleLock() end
-    if input.KeyCode == Enum.KeyCode.O then toggleESP() end
-end)
+local function toggleESP()
+    espAtivo = not espAtivo
+    if espAtivo then
+        atualizarListaESP()
+        espListTh = task.spawn(function()
+            while espAtivo do pcall(atualizarListaESP); task.wait(INTERVALO_LISTA) end
+        end)
+        espDrawConn = RunService.RenderStepped:Connect(desenharESP)
+    else
+        espListTh = nil
+        if espDrawConn then espDrawConn:Disconnect(); espDrawConn = nil end
+        limparESP(); alvosESP = {}
+    end
+    if attBts then attBts() end
+end
 
-print("⚡ EZEK v18.2 Carregado! Inclinação ativa.")
+-- ===================== PREVIEW (QUADRADO VERDE) =====================
+function limparPreview()
+    if previewEl and previewEl.cont and previewEl.cont.Parent then previewEl.cont:Destroy() end
+    previewEl = nil; previewAlvo = nil
+end
+
+local function criarPreview(m)
+    limparPreview()
+    if not m or not m.Parent then return end
+    local cont = Instance.new("Frame", espGui); cont.BackgroundTransparency = 1; cont.BorderSizePixel = 0; cont.Visible = false
+    local box = Instance.new("Frame", cont); box.BackgroundTransparency = 1; box.BorderSizePixel = 0
+    local st = Instance.new("UIStroke", box); st.Color = Color3.fromRGB(0, 255, 0); st.Thickness = 2; st.Transparency = 0
+    previewEl = {cont = cont, box = box, st = st}; previewAlvo = m
+end
+
+local function atualizarPreview()
+    if ativo then if previewEl then limparPreview() end return end
+    
+    if tick() - lastPreviewDraw > 0.1 then
+        local t = acharAlvo()
+        if t ~= previewAlvo then
+            if t then criarPreview(t) else limparPreview() end
+        end
+        lastPreviewDraw = tick()
+    end
+    
+    if previewEl and previewAlvo and previewAlvo.Parent and previewAlvo ~= player.Character then
+        local r = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if r then
+            local parte = pegarParte(previewAlvo)
+            if parte then
+                local top = camera:WorldToViewportPoint(parte.Position + Vector3.new(0,2.5,0))
+                local bot = camera:WorldToViewportPoint(parte.Position - Vector3.new(0,2.5,0))
+                if top.Z > 0 and bot.Z > 0 then
+                    local alt = math.abs(top.Y - bot.Y)
+                    if alt > 5 then
+                        local lar = alt * 0.55; local cx = (top.X + bot.X) / 2; local cy = (top.Y + bot.Y) / 2
+                        previewEl.cont.Visible = true
+                        previewEl.box.Size = UDim2.new(0, lar, 0, alt)
+                        previewEl.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
+                    else previewEl.cont.Visible = false end
+                else previewEl.cont.Visible = false end
+            end
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function() pcall(atualizarPreview) end)
+
+-- ===================== GUI (MENU ANTIGO) =====================
+local CORES = {fundo=Color3.fromRGB(20,20,25), topo=Color3.fromRGB(30,30,40), botao=Color3.fromRGB(45,45,60), on=Color3.fromRGB(0,170,90), off=Color3.fromRGB(180,50,50), texto=Color3.fromRGB(240,240,240), fraco=Color3.fromRGB(160,160,170), borda=Color3.fromRGB(90,90,120), cOn=Color3.fromRGB(0,170,90), cOff=Color3.fromRGB(60,60,75)}
+
+local sg = Instance.new("ScreenGui")
+sg.Name = "EZEK_GUI_"..VERSAO
+sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.DisplayOrder = 999999
+sg.Parent = player:WaitForChild("PlayerGui")
+
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.new(0, 200, 0, 470); main.Position = UDim2.new(0, 15, 0, 60)
+main.BackgroundColor3 = CORES.fundo; main.BorderSizePixel = 0; main.Active = true; main.ClipsDescendants = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+local topBar = Instance.new("Frame", main)
+topBar.Size = UDim2.new(1,0,0,36); topBar.BackgroundColor3 = CORES.topo; topBar.BorderSizePixel = 0
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
+
+local title = Instance.new("TextLabel", topBar)
+title.Size = UDim2.new(1,-70,1,0); title.Position = UDim2.new(0,10,0,0); title.BackgroundTransparency = 1
+title.Text = "🎯 EZEK "..VERSAO; title.TextColor3 = CORES.texto; title.Font = Enum.Font.GothamBold; title.TextSize = 12; title.TextXAlignment = Enum.TextXAlignment.Left
+
+local minBtn = Instance.new("TextButton", topBar)
+minBtn.Size = UDim2.new(0,26,0,26); minBtn.Position = UDim2.new(1,-60,0,5); minBtn.BackgroundColor3 = CORES.botao
+minBtn.Text = "—"; minBtn.TextColor3 = CORES.texto; minBtn.Font = Enum.Font.GothamBold; minBtn.TextSize = 16
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0,6)
+
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0,26,0,26); closeBtn.Position = UDim2.new(1,-30,0,5); closeBtn.BackgroundColor3 = CORES.off
+closeBtn.Text = "✕"; closeBtn.TextColor3 = CORES.texto; closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 14
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,6)
+
+local content = In
