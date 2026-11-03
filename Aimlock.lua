@@ -1,11 +1,10 @@
--- EZEK v20.2 - COMPLETO + MINIMIZAR
+-- EZEK v21.0 - LOCK E ESP EM TUDO (Dummies, Monstros, Players, Objetos)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- Limpa lixo
 for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
     if obj:IsA("ScreenGui") and (string.find(obj.Name, "EZEK") or string.find(obj.Name, "Aimlock")) then
         obj:Destroy()
@@ -13,7 +12,7 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v20.2"
+local VERSAO = "v21.0"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
@@ -22,33 +21,79 @@ local inclinacaoAtual = 2.5
 
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 
+-- 🔥 CACHE DA LISTA (Pra não lagar e não perder alvo)
+local cache = {}
+local cacheT = 0
+
 local function getVida(m)
     local h = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
     if h then return h.Health, h.MaxHealth end
-    local hp = m:GetAttribute("Health") or m:GetAttribute("HP") or m:GetAttribute("Vida")
-    if type(hp) == "number" then return hp, 100 end
+    
+    local attrs = {"Health", "HP", "Vida", "health", "hp", "vida", "CurrentHealth", "MaxHealth"}
+    for _, a in ipairs(attrs) do
+        local v = m:GetAttribute(a)
+        if type(v) == "number" then return v, 100 end
+    end
+    
+    for _, obj in ipairs(m:GetDescendants()) do
+        if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+            local n = string.lower(obj.Name)
+            if n:find("health") or n:find("hp") or n:find("vida") then
+                return obj.Value, 100
+            end
+        end
+    end
     return nil,nil
 end
+
 local function temVida(m) local hp = getVida(m) return hp and hp > 0 end
+
 local function pegarParte(m)
     if not m then return nil end
-    return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChildWhichIsA("BasePart")
+    if m:IsA("BasePart") then return m end
+    return m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") 
+        or m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") 
+        or m:FindFirstChildWhichIsA("BasePart")
 end
+
 local function getTipo(m)
     if Players:GetPlayerFromCharacter(m) then return "players" end
     local n = string.lower(m.Name)
-    if n:find("dummy") or n:find("training") then return "dummies" end
+    if n:find("dummy") or n:find("training") or n:find("test") then return "dummies" end
     if m:FindFirstChildOfClass("Humanoid") or temVida(m) then return "monstros" end
     return "objetos"
 end
+
+-- 🔥 BUSCA PROFUNDA COM CACHE
 local function getTodos()
+    local t = tick()
+    if t - cacheT < 1 and #cache > 0 then
+        return cache
+    end
+    
     local lista = {}
+    local vistos = {}
+    
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player and p.Character and temVida(p.Character) then table.insert(lista, p.Character) end
+        if p ~= player and p.Character and temVida(p.Character) and not vistos[p.Character] then
+            table.insert(lista, p.Character); vistos[p.Character] = true
+        end
     end
-    for _, v in pairs(workspace:GetChildren()) do
-        if v:IsA("Model") and v ~= player.Character and temVida(v) and pegarParte(v) then table.insert(lista, v) end
+    
+    local function proc(pasta, prof)
+        if prof > 6 then return end
+        for _, v in pairs(pasta:GetChildren()) do
+            if v:IsA("Model") and v ~= player.Character and temVida(v) and pegarParte(v) and not vistos[v] then
+                table.insert(lista, v); vistos[v] = true
+            end
+            if v:IsA("Folder") or v:IsA("Model") then 
+                proc(v, prof + 1) 
+            end
+        end
     end
+    proc(workspace, 0)
+    
+    cache = lista; cacheT = t
     return lista
 end
 
@@ -62,7 +107,7 @@ local function acharAlvo()
             local p = pegarParte(m)
             if p then
                 local dist = (p.Position - cp).Magnitude
-                if dist > 2 then
+                if dist > 0.5 then -- Aceita até 50 centímetros de distância
                     local ang = math.acos(math.clamp(cl:Dot((p.Position - cp).Unit), -1, 1))
                     if ang < angMin then angMin = ang; melhor = m end
                 end
@@ -116,8 +161,12 @@ end
 local function toggleLock()
     if ativo then pararLock() else
         local t = acharAlvo()
-        if not t then return end
+        if not t then 
+            print("❌ [EZEK] Nenhum alvo encontrado na mira!")
+            return 
+        end
         alvo = t; ativo = true
+        print("🔒 [EZEK] Lockado em: " .. t.Name) -- Isso vai aparecer no console
         local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if root then
             if gyro then gyro:Destroy() end
@@ -223,21 +272,19 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===================== UI COM MINIMIZAR =====================
+-- ===================== UI =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_GUI_v20"; sg.ResetOnSpawn = false
+sg.Name = "EZEK_GUI_v21"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
 main.Size = UDim2.new(0, 180, 0, 330); main.Position = UDim2.new(0, 20, 0.5, -165)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
--- Barra de Título
 local title = Instance.new("TextLabel", main)
 title.Size = UDim2.new(1, 0, 0, 36); title.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 title.Text = "🎯 EZEK " .. VERSAO; title.TextColor3 = Color3.fromRGB(0, 255, 255); title.Font = Enum.Font.GothamBold; title.TextSize = 14
 Instance.new("UICorner", title).CornerRadius = UDim.new(0, 8)
 
--- Botão Fechar (X)
 local closeBtn = Instance.new("TextButton", title)
 closeBtn.Size = UDim2.new(0, 30, 1, 0); closeBtn.Position = UDim2.new(1, -30, 0, 0)
 closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); closeBtn.Text = "X"; closeBtn.TextColor3 = Color3.new(1,1,1)
@@ -245,14 +292,12 @@ closeBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 closeBtn.MouseButton1Click:Connect(function() sg:Destroy() end)
 
--- 🔥 Botão Minimizar (-)
 local minBtn = Instance.new("TextButton", title)
 minBtn.Size = UDim2.new(0, 30, 1, 0); minBtn.Position = UDim2.new(1, -60, 0, 0)
 minBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50); minBtn.Text = "-"; minBtn.TextColor3 = Color3.new(1,1,1)
 minBtn.Font = Enum.Font.GothamBold; minBtn.TextSize = 16
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 8)
 
--- 🔥 Botão Flutuante pra Reabrir
 local floatingBtn = Instance.new("TextButton", sg)
 floatingBtn.Size = UDim2.new(0, 44, 0, 44); floatingBtn.Position = UDim2.new(0, 20, 0, 100)
 floatingBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); floatingBtn.Text = "🎯"; floatingBtn.TextSize = 20
@@ -270,7 +315,6 @@ floatingBtn.MouseButton1Click:Connect(function()
     floatingBtn.Visible = false
 end)
 
--- Arrastar Menu Principal
 local dragging, dragStart, startPos
 title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -285,7 +329,6 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
--- Arrastar Botão Flutuante
 local dragF, dragStartF, startPosF
 floatingBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -377,4 +420,4 @@ UIS.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.O then btnEsp:Activate() end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado! Minimizar Ativado.")
+print("⚡ EZEK " .. VERSAO .. " Carregado! Busca Profunda Ativada.")
