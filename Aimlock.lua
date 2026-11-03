@@ -1,4 +1,4 @@
--- EZEK v25.0 - MIRA ACIMA DA CABEÇA (Câmera olha pra cima)
+-- EZEK v26.0 - Botão de Mira pra Cima (Só sobe) + Controles + ESP
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,11 +12,16 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v25.0"
+local VERSAO = "v26.0"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local espEl = {}
+
+-- 🔥 VARIÁVEL DA MIRA (Começa em 2.0 e vai subindo)
+local inclinacaoAtual = 2.0
+local opcoesInclinacao = {2.0, 4.0, 6.0, 8.0}
+local opcaoIndex = 1
 
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local cache, cacheT = {}, 0
@@ -121,8 +126,8 @@ local function atualizarLock()
     local cabeca = alvo:FindFirstChild("Head")
     if cabeca then miraPos = cabeca.Position end
     
-    -- 🔥 AQUI ESTÁ A PORRA DA MIRA PRA CIMA: Adiciona 6 studs acima do inimigo
-    miraPos = miraPos + Vector3.new(0, 6, 0)
+    -- 🔥 AQUI APLICA A ALTURA QUE O BOTÃO ESCOLHEU
+    miraPos = miraPos + Vector3.new(0, inclinacaoAtual, 0)
     
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
 end
@@ -243,9 +248,9 @@ end)
 
 -- ===================== UI =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_GUI_v25"; sg.ResetOnSpawn = false
+sg.Name = "EZEK_GUI_v26"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
-main.Size = UDim2.new(0, 180, 0, 300); main.Position = UDim2.new(0, 20, 0.5, -150)
+main.Size = UDim2.new(0, 180, 0, 360); main.Position = UDim2.new(0, 20, 0.5, -180)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
@@ -310,14 +315,21 @@ btnEsp.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnEsp.Text = "👁️ ESP
 btnEsp.TextColor3 = Color3.new(1,1,1); btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0, 6)
 
+-- 🔥 BOTÃO DE MIRA PRA CIMA
+local btnCam = Instance.new("TextButton", main)
+btnCam.Size = UDim2.new(1, -20, 0, 35); btnCam.Position = UDim2.new(0, 10, 0, 136)
+btnCam.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnCam.Text = "📷 MIRA ACIMA: 2.0"
+btnCam.TextColor3 = Color3.new(1,1,1); btnCam.Font = Enum.Font.GothamBold; btnCam.TextSize = 12
+Instance.new("UICorner", btnCam).CornerRadius = UDim.new(0, 6)
+
 local fTitle = Instance.new("TextLabel", main)
-fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 136)
+fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 180)
 fTitle.BackgroundTransparency = 1; fTitle.Text = "Filtros:"; fTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
 fTitle.Font = Enum.Font.GothamMedium; fTitle.TextSize = 11; fTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 local function mkCheckInContainer(txt, chave, y)
     local cf = Instance.new("Frame", main)
-    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 156 + y); cf.BackgroundTransparency = 1
+    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 200 + y); cf.BackgroundTransparency = 1
     
     local box = Instance.new("TextButton", cf)
     box.Size = UDim2.new(0, 20, 0, 20); box.Position = UDim2.new(0, 0, 0, 2)
@@ -361,23 +373,23 @@ btnEsp.MouseButton1Click:Connect(function()
     atualizarBotoes()
 end)
 
--- 🔥 TECLADO E CONTROLE DE VOLTA
+-- 🔥 LÓGICA DO BOTÃO DE MIRA (Só pra cima)
+btnCam.MouseButton1Click:Connect(function()
+    opcaoIndex = opcaoIndex + 1
+    if opcaoIndex > #opcoesInclinacao then opcaoIndex = 1 end
+    inclinacaoAtual = opcoesInclinacao[opcaoIndex]
+    btnCam.Text = "📷 MIRA ACIMA: " .. tostring(inclinacaoAtual)
+end)
+
+-- 🔥 TECLADO E CONTROLE
 UIS.InputBegan:Connect(function(input, gp)
     local nosso = input.KeyCode == Enum.KeyCode.P or input.KeyCode == Enum.KeyCode.O
         or input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2
         or input.KeyCode == Enum.KeyCode.ButtonL1 or input.KeyCode == Enum.KeyCode.ButtonL2
     if gp and not nosso then return end
     
-    if input.KeyCode == Enum.KeyCode.P then 
-        toggleLock()
-        atualizarBotoes()
-        return 
-    end
-    if input.KeyCode == Enum.KeyCode.O then 
-        toggleESP()
-        atualizarBotoes()
-        return 
-    end
+    if input.KeyCode == Enum.KeyCode.P then toggleLock(); atualizarBotoes(); return end
+    if input.KeyCode == Enum.KeyCode.O then toggleESP(); atualizarBotoes(); return end
 
     if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
     if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
@@ -386,19 +398,11 @@ UIS.InputBegan:Connect(function(input, gp)
 
     if r1 and r2 then
         local a = tick()
-        if a-uL > 0.8 then 
-            toggleLock()
-            atualizarBotoes()
-            uL = a; r1=false; r2=false 
-        end
+        if a-uL > 0.8 then toggleLock(); atualizarBotoes(); uL = a; r1=false; r2=false end
     end
     if l1 and l2 then
         local a = tick()
-        if a-uE > 0.8 then 
-            toggleESP()
-            atualizarBotoes()
-            uE = a; l1=false; l2=false 
-        end
+        if a-uE > 0.8 then toggleESP(); atualizarBotoes(); uE = a; l1=false; l2=false end
     end
 end)
 
@@ -409,4 +413,4 @@ UIS.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado! Mira ACIMA da cabeça.")
+print("⚡ EZEK " .. VERSAO .. " Carregado! Botão de mira pra cima ativado.")
