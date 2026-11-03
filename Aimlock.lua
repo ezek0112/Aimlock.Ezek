@@ -1,4 +1,4 @@
--- EZEK v29.1 - HP e Distância no ESP e no Lock + Mira Cabeça/Peito
+-- EZEK v30.0 - FINAL DEFINITIVO (Tudo consertado)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,12 +12,12 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v29.1"
+local VERSAO = "v30.0"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local espEl = {}
-local hpBar = nil -- 🔥 Variável da barra de vida do Lock
+local hpBar = nil 
 
 local alturaCamera = 2.0
 local opcoesAltura = {2.0, 4.0, 6.0, 8.0}
@@ -77,7 +77,6 @@ local function getTodos()
     return lista
 end
 
--- ===================== HP BAR DO LOCK =====================
 local function criarHPBar(m)
     if hpBar and hpBar.Parent then hpBar:Destroy() end
     local root = pegarParte(m)
@@ -85,22 +84,18 @@ local function criarHPBar(m)
     local bb = Instance.new("BillboardGui", m)
     bb.Adornee = root; bb.Size = UDim2.new(0, 150, 0, 45); bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true
     hpBar = bb
-    
     local nome = Instance.new("TextLabel", bb)
     nome.Name = "N"; nome.Size = UDim2.new(1,0,0,14); nome.Position = UDim2.new(0,0,0,0)
     nome.BackgroundTransparency = 1; nome.Text = m.Name; nome.TextColor3 = Color3.new(1,1,1)
     nome.TextStrokeTransparency = 0; nome.Font = Enum.Font.GothamBold; nome.TextSize = 12
     nome.TextXAlignment = Enum.TextXAlignment.Center
-
     local bg = Instance.new("Frame", bb)
     bg.Name = "B"; bg.Size = UDim2.new(1,0,0,10); bg.Position = UDim2.new(0,0,0,16)
     bg.BackgroundColor3 = Color3.fromRGB(20,20,20); bg.BorderSizePixel = 0
     Instance.new("UICorner", bg).CornerRadius = UDim.new(1,0)
-    
     local fill = Instance.new("Frame", bg)
     fill.Name = "F"; fill.Size = UDim2.new(1,0,1,0); fill.BackgroundColor3 = Color3.fromRGB(0,200,0); fill.BorderSizePixel = 0
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
-
     local hpText = Instance.new("TextLabel", bb)
     hpText.Name = "H"; hpText.Size = UDim2.new(1,0,0,14); hpText.Position = UDim2.new(0,0,0,28)
     hpText.BackgroundTransparency = 1; hpText.TextColor3 = Color3.new(1,1,1)
@@ -114,13 +109,11 @@ local function updateHPBar()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hp, mx = getVida(alvo)
     if not hp then return end
-    
     local dist = 0
     if root then
         local p = pegarParte(alvo)
         if p then dist = (p.Position - root.Position).Magnitude end
     end
-
     local pct = math.clamp(hp/(mx or 100),0,1)
     local f = hpBar:FindFirstChild("B") and hpBar.B:FindFirstChild("F")
     if f then
@@ -128,12 +121,9 @@ local function updateHPBar()
         f.BackgroundColor3 = pct>0.6 and Color3.fromRGB(0,200,0) or (pct>0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,50,50))
     end
     local hTxt = hpBar:FindFirstChild("H")
-    if hTxt then 
-        hTxt.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx or 100), math.floor(dist)) 
-    end
+    if hTxt then hTxt.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx or 100), math.floor(dist)) end
 end
 
--- LOCK CRAVADO
 local function acharAlvo()
     local melhor, angMin = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
@@ -158,7 +148,7 @@ local function pararLock()
     ativo = false; alvo = nil
     RunService:UnbindFromRenderStep("EZEK_CAM")
     if gyro then gyro:Destroy(); gyro = nil end
-    if hpBar then hpBar:Destroy(); hpBar = nil end -- 🔥 Limpa a barra
+    if hpBar then hpBar:Destroy(); hpBar = nil end
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if h then h.AutoRotate = true end
 end
@@ -170,16 +160,13 @@ local function atualizarLock()
     local h = char and char:FindFirstChildOfClass("Humanoid")
     local p = pegarParte(alvo)
     if not root or not h or not p then pararLock() return end
-
     if gyro then
         local targetPos = Vector3.new(p.Position.X, root.Position.Y, p.Position.Z)
         if (targetPos - root.Position).Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, targetPos) end
     end
-    
     h.AutoRotate = false
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
-
     local miraPos = p.Position
     if miraPeito then
         local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
@@ -188,13 +175,11 @@ local function atualizarLock()
         local cabeca = alvo:FindFirstChild("Head")
         if cabeca then miraPos = cabeca.Position end
     end
-    
     local posicaoAtual = camera.CFrame.Position
     local novaPosicao = Vector3.new(posicaoAtual.X, root.Position.Y + alturaCamera, posicaoAtual.Z)
     local cframeAlvo = CFrame.lookAt(novaPosicao, miraPos)
-    
     camera.CFrame = camera.CFrame:Lerp(cframeAlvo, 0.5)
-    updateHPBar() -- 🔥 Atualiza a barra
+    updateHPBar()
 end
 
 local function toggleLock()
@@ -202,7 +187,7 @@ local function toggleLock()
         local t = acharAlvo()
         if not t then return end
         alvo = t; ativo = true
-        criarHPBar(t) -- 🔥 Cria a barra
+        criarHPBar(t)
         local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if root then
             if gyro then gyro:Destroy() end
@@ -214,7 +199,6 @@ local function toggleLock()
     end
 end
 
--- PREVIEW
 local espGui = Instance.new("ScreenGui", player.PlayerGui)
 espGui.Name = "EZEK_ESP_Hub"; espGui.ResetOnSpawn = false; espGui.IgnoreGuiInset = true
 
@@ -264,7 +248,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ESP
 local function toggleESP()
     espAtivo = not espAtivo
     if not espAtivo then 
@@ -278,14 +261,12 @@ RunService.RenderStepped:Connect(function()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    
     for m, d in pairs(espEl) do
         if not m.Parent or not temVida(m) then
             d.cont:Destroy()
             espEl[m] = nil
         end
     end
-
     for _, m in pairs(getTodos()) do
         if filtros[getTipo(m)] and temVida(m) then
             local p = pegarParte(m)
@@ -315,7 +296,6 @@ RunService.RenderStepped:Connect(function()
                         d.cont.Size = UDim2.new(0, lar, 0, alt); d.cont.Position = UDim2.new(0, cx, 0, cy)
                         local hVal, hMax = getVida(m)
                         local dist = (p.Position - root.Position).Magnitude
-                        -- 🔥 MOSTRA VIDA E DISTÂNCIA NO ESP
                         if hVal then d.hp.Text = string.format("%d/%d | %dm", math.floor(hVal), math.floor(hMax or 100), math.floor(dist)) end
                     else d.cont.Visible = false end
                 else d.cont.Visible = false end
@@ -324,9 +304,8 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===================== UI =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_GUI_v29"; sg.ResetOnSpawn = false
+sg.Name = "EZEK_GUI_v30"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
 main.Size = UDim2.new(0, 180, 0, 400); main.Position = UDim2.new(0, 20, 0.5, -200)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
@@ -442,4 +421,20 @@ mkCheckInContainer("📦 Objetos", "objetos", 75)
 local function atualizarBotoes()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
     btnLock.BackgroundColor3 = ativo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
-    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ E
+    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
+    btnEsp.BackgroundColor3 = espAtivo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
+end
+
+btnLock.MouseButton1Click:Connect(function()
+    toggleLock()
+    atualizarBotoes()
+end)
+
+btnEsp.MouseButton1Click:Connect(function()
+    toggleESP()
+    atualizarBotoes()
+end)
+
+btnMira.MouseButton1Click:Connect(function()
+    miraPeito = not miraPeito
+    if miraPei
