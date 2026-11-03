@@ -442,4 +442,4 @@ mkCheckInContainer("📦 Objetos", "objetos", 75)
 local function atualizarBotoes()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
     btnLock.BackgroundColor3 = ativo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
-    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ Ei
+    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ E
