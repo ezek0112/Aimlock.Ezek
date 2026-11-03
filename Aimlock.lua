@@ -1,4 +1,4 @@
--- EZEK v26.0 - Botão de Mira pra Cima (Só sobe) + Controles + ESP
+-- EZEK v29.0 - Seleção de Mira (Cabeça/Peito) + Câmera Alta + ESP
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,16 +12,18 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v26.0"
+local VERSAO = "v29.0"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local espEl = {}
 
--- 🔥 VARIÁVEL DA MIRA (Começa em 2.0 e vai subindo)
-local inclinacaoAtual = 2.0
-local opcoesInclinacao = {2.0, 4.0, 6.0, 8.0}
+local alturaCamera = 2.0
+local opcoesAltura = {2.0, 4.0, 6.0, 8.0}
 local opcaoIndex = 1
+
+-- 🔥 VARIÁVEL DA MIRA (false = Cabeça, true = Peito)
+local miraPeito = false
 
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local cache, cacheT = {}, 0
@@ -122,14 +124,22 @@ local function atualizarLock()
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
 
+    -- 🔥 AQUI ESCOLHE O OSSO PRA MIRAR
     local miraPos = p.Position
-    local cabeca = alvo:FindFirstChild("Head")
-    if cabeca then miraPos = cabeca.Position end
+    if miraPeito then
+        local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
+        if peito then miraPos = peito.Position end
+    else
+        local cabeca = alvo:FindFirstChild("Head")
+        if cabeca then miraPos = cabeca.Position end
+    end
     
-    -- 🔥 AQUI APLICA A ALTURA QUE O BOTÃO ESCOLHEU
-    miraPos = miraPos + Vector3.new(0, inclinacaoAtual, 0)
+    -- Câmera sobe fisicamente
+    local posicaoAtual = camera.CFrame.Position
+    local novaPosicao = Vector3.new(posicaoAtual.X, root.Position.Y + alturaCamera, posicaoAtual.Z)
+    local cframeAlvo = CFrame.lookAt(novaPosicao, miraPos)
     
-    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
+    camera.CFrame = camera.CFrame:Lerp(cframeAlvo, 0.5)
 end
 
 local function toggleLock()
@@ -162,10 +172,14 @@ end
 
 local function criarPreview(m)
     limparPreview()
-    local cont = Instance.new("Frame", espGui); cont.BackgroundTransparency = 1; cont.Visible = false
-    local box = Instance.new("Frame", cont); box.BackgroundTransparency = 1
-    local st = Instance.new("UIStroke", box); st.Color = Color3.fromRGB(0, 255, 0); st.Thickness = 2
-    previewEl = {cont = cont, box = box}; previewAlvo = m
+    local cont = Instance.new("Frame", espGui)
+    cont.BackgroundTransparency = 1
+    cont.Visible = false
+    cont.AnchorPoint = Vector2.new(0.5, 0.5)
+    local st = Instance.new("UIStroke", cont)
+    st.Color = Color3.fromRGB(0, 255, 0)
+    st.Thickness = 2
+    previewEl = {cont = cont}; previewAlvo = m
 end
 
 RunService.RenderStepped:Connect(function()
@@ -182,10 +196,12 @@ RunService.RenderStepped:Connect(function()
             if top.Z > 0 and bot.Z > 0 then
                 local alt = math.abs(top.Y - bot.Y)
                 if alt > 5 then
-                    local lar = alt * 0.55; local cx = (top.X + bot.X) / 2; local cy = (top.Y + bot.Y) / 2
+                    local lar = alt * 0.55
+                    local cx = (top.X + bot.X) / 2
+                    local cy = (top.Y + bot.Y) / 2
                     previewEl.cont.Visible = true
-                    previewEl.box.Size = UDim2.new(0, lar, 0, alt)
-                    previewEl.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
+                    previewEl.cont.Size = UDim2.new(0, lar, 0, alt)
+                    previewEl.cont.Position = UDim2.new(0, cx, 0, cy)
                 else previewEl.cont.Visible = false end
             else previewEl.cont.Visible = false end
         end
@@ -219,12 +235,18 @@ RunService.RenderStepped:Connect(function()
             local p = pegarParte(m)
             if p then
                 if not espEl[m] then
-                    local cont = Instance.new("Frame", espGui); cont.BackgroundTransparency = 1
-                    local box = Instance.new("Frame", cont); box.BackgroundTransparency = 1
-                    local st = Instance.new("UIStroke", box); st.Color = Color3.fromRGB(0, 255, 255)
-                    local nm = Instance.new("TextLabel", cont); nm.BackgroundTransparency = 1; nm.TextSize = 11; nm.TextColor3 = st.Color; nm.TextStrokeTransparency = 0; nm.Text = m.Name
-                    local hp = Instance.new("TextLabel", cont); hp.BackgroundTransparency = 1; hp.TextSize = 10; hp.TextColor3 = Color3.fromRGB(0,255,0); hp.TextStrokeTransparency = 0
-                    espEl[m] = {cont=cont, box=box, nm=nm, hp=hp}
+                    local cont = Instance.new("Frame", espGui)
+                    cont.BackgroundTransparency = 1
+                    cont.AnchorPoint = Vector2.new(0.5, 0.5)
+                    local st = Instance.new("UIStroke", cont)
+                    st.Color = Color3.fromRGB(0, 255, 255)
+                    local nm = Instance.new("TextLabel", cont)
+                    nm.BackgroundTransparency = 1; nm.Size = UDim2.new(1, 0, 0, 14); nm.Position = UDim2.new(0, 0, 0, -16)
+                    nm.TextSize = 11; nm.TextColor3 = st.Color; nm.TextStrokeTransparency = 0; nm.Font = Enum.Font.GothamBold; nm.Text = m.Name
+                    local hp = Instance.new("TextLabel", cont)
+                    hp.BackgroundTransparency = 1; hp.Size = UDim2.new(1, 0, 0, 14); hp.Position = UDim2.new(0, 0, 1, 2)
+                    hp.TextSize = 10; hp.TextColor3 = Color3.fromRGB(0,255,0); hp.TextStrokeTransparency = 0; hp.Font = Enum.Font.GothamBold
+                    espEl[m] = {cont=cont, nm=nm, hp=hp}
                 end
                 local d = espEl[m]
                 local top = camera:WorldToViewportPoint(p.Position + Vector3.new(0,2.5,0))
@@ -234,9 +256,7 @@ RunService.RenderStepped:Connect(function()
                     if alt > 5 then
                         local lar = alt * 0.55; local cx = (top.X + bot.X) / 2; local cy = (top.Y + bot.Y) / 2
                         d.cont.Visible = true
-                        d.box.Size = UDim2.new(0, lar, 0, alt); d.box.Position = UDim2.new(0, cx - lar/2, 0, cy - alt/2)
-                        d.nm.Position = UDim2.new(0, cx - 75, 0, cy - alt/2 - 16); d.nm.Size = UDim2.new(0, 150, 0, 14)
-                        d.hp.Position = UDim2.new(0, cx - 75, 0, cy + alt/2 + 2); d.hp.Size = UDim2.new(0, 150, 0, 14)
+                        d.cont.Size = UDim2.new(0, lar, 0, alt); d.cont.Position = UDim2.new(0, cx, 0, cy)
                         local hVal, hMax = getVida(m)
                         if hVal then d.hp.Text = string.format("%d/%d", math.floor(hVal), math.floor(hMax or 100)) end
                     else d.cont.Visible = false end
@@ -248,9 +268,9 @@ end)
 
 -- ===================== UI =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_GUI_v26"; sg.ResetOnSpawn = false
+sg.Name = "EZEK_GUI_v29"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
-main.Size = UDim2.new(0, 180, 0, 360); main.Position = UDim2.new(0, 20, 0.5, -180)
+main.Size = UDim2.new(0, 180, 0, 400); main.Position = UDim2.new(0, 20, 0.5, -200)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
@@ -315,21 +335,27 @@ btnEsp.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnEsp.Text = "👁️ ESP
 btnEsp.TextColor3 = Color3.new(1,1,1); btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0, 6)
 
--- 🔥 BOTÃO DE MIRA PRA CIMA
+-- 🔥 BOTÃO DE MIRA CABEÇA/PEITO
+local btnMira = Instance.new("TextButton", main)
+btnMira.Size = UDim2.new(1, -20, 0, 35); btnMira.Position = UDim2.new(0, 10, 0, 136)
+btnMira.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnMira.Text = "🎯 MIRA: CABEÇA"
+btnMira.TextColor3 = Color3.new(1,1,1); btnMira.Font = Enum.Font.GothamBold; btnMira.TextSize = 12
+Instance.new("UICorner", btnMira).CornerRadius = UDim.new(0, 6)
+
 local btnCam = Instance.new("TextButton", main)
-btnCam.Size = UDim2.new(1, -20, 0, 35); btnCam.Position = UDim2.new(0, 10, 0, 136)
-btnCam.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnCam.Text = "📷 MIRA ACIMA: 2.0"
+btnCam.Size = UDim2.new(1, -20, 0, 35); btnCam.Position = UDim2.new(0, 10, 0, 181)
+btnCam.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnCam.Text = "📷 CÂMERA ACIMA: 2.0"
 btnCam.TextColor3 = Color3.new(1,1,1); btnCam.Font = Enum.Font.GothamBold; btnCam.TextSize = 12
 Instance.new("UICorner", btnCam).CornerRadius = UDim.new(0, 6)
 
 local fTitle = Instance.new("TextLabel", main)
-fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 180)
+fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 225)
 fTitle.BackgroundTransparency = 1; fTitle.Text = "Filtros:"; fTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
 fTitle.Font = Enum.Font.GothamMedium; fTitle.TextSize = 11; fTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 local function mkCheckInContainer(txt, chave, y)
     local cf = Instance.new("Frame", main)
-    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 200 + y); cf.BackgroundTransparency = 1
+    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 245 + y); cf.BackgroundTransparency = 1
     
     local box = Instance.new("TextButton", cf)
     box.Size = UDim2.new(0, 20, 0, 20); box.Position = UDim2.new(0, 0, 0, 2)
@@ -373,15 +399,25 @@ btnEsp.MouseButton1Click:Connect(function()
     atualizarBotoes()
 end)
 
--- 🔥 LÓGICA DO BOTÃO DE MIRA (Só pra cima)
-btnCam.MouseButton1Click:Connect(function()
-    opcaoIndex = opcaoIndex + 1
-    if opcaoIndex > #opcoesInclinacao then opcaoIndex = 1 end
-    inclinacaoAtual = opcoesInclinacao[opcaoIndex]
-    btnCam.Text = "📷 MIRA ACIMA: " .. tostring(inclinacaoAtual)
+-- 🔥 LÓGICA DO BOTÃO DE MIRA
+btnMira.MouseButton1Click:Connect(function()
+    miraPeito = not miraPeito
+    if miraPeito then
+        btnMira.Text = "🎯 MIRA: PEITO"
+        btnMira.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- Vermelho pra diferenciar
+    else
+        btnMira.Text = "🎯 MIRA: CABEÇA"
+        btnMira.BackgroundColor3 = Color3.fromRGB(40, 40, 50) -- Cinza normal
+    end
 end)
 
--- 🔥 TECLADO E CONTROLE
+btnCam.MouseButton1Click:Connect(function()
+    opcaoIndex = opcaoIndex + 1
+    if opcaoIndex > #opcoesAltura then opcaoIndex = 1 end
+    alturaCamera = opcoesAltura[opcaoIndex]
+    btnCam.Text = "📷 CÂMERA ACIMA: " .. tostring(alturaCamera)
+end)
+
 UIS.InputBegan:Connect(function(input, gp)
     local nosso = input.KeyCode == Enum.KeyCode.P or input.KeyCode == Enum.KeyCode.O
         or input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2
@@ -413,4 +449,4 @@ UIS.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado! Botão de mira pra cima ativado.")
+print("⚡ EZEK " .. VERSAO .. " Carregado! Seleção de Mira Ativada.")
