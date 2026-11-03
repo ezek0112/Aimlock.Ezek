@@ -1,4 +1,4 @@
--- EZEK v29.0 - Seleção de Mira (Cabeça/Peito) + Câmera Alta + ESP
+-- EZEK v29.1 - HP e Distância no ESP e no Lock + Mira Cabeça/Peito
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,17 +12,16 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v29.0"
+local VERSAO = "v29.1"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local espEl = {}
+local hpBar = nil -- 🔥 Variável da barra de vida do Lock
 
 local alturaCamera = 2.0
 local opcoesAltura = {2.0, 4.0, 6.0, 8.0}
 local opcaoIndex = 1
-
--- 🔥 VARIÁVEL DA MIRA (false = Cabeça, true = Peito)
 local miraPeito = false
 
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
@@ -78,6 +77,62 @@ local function getTodos()
     return lista
 end
 
+-- ===================== HP BAR DO LOCK =====================
+local function criarHPBar(m)
+    if hpBar and hpBar.Parent then hpBar:Destroy() end
+    local root = pegarParte(m)
+    if not root then return end
+    local bb = Instance.new("BillboardGui", m)
+    bb.Adornee = root; bb.Size = UDim2.new(0, 150, 0, 45); bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true
+    hpBar = bb
+    
+    local nome = Instance.new("TextLabel", bb)
+    nome.Name = "N"; nome.Size = UDim2.new(1,0,0,14); nome.Position = UDim2.new(0,0,0,0)
+    nome.BackgroundTransparency = 1; nome.Text = m.Name; nome.TextColor3 = Color3.new(1,1,1)
+    nome.TextStrokeTransparency = 0; nome.Font = Enum.Font.GothamBold; nome.TextSize = 12
+    nome.TextXAlignment = Enum.TextXAlignment.Center
+
+    local bg = Instance.new("Frame", bb)
+    bg.Name = "B"; bg.Size = UDim2.new(1,0,0,10); bg.Position = UDim2.new(0,0,0,16)
+    bg.BackgroundColor3 = Color3.fromRGB(20,20,20); bg.BorderSizePixel = 0
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1,0)
+    
+    local fill = Instance.new("Frame", bg)
+    fill.Name = "F"; fill.Size = UDim2.new(1,0,1,0); fill.BackgroundColor3 = Color3.fromRGB(0,200,0); fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+
+    local hpText = Instance.new("TextLabel", bb)
+    hpText.Name = "H"; hpText.Size = UDim2.new(1,0,0,14); hpText.Position = UDim2.new(0,0,0,28)
+    hpText.BackgroundTransparency = 1; hpText.TextColor3 = Color3.new(1,1,1)
+    hpText.TextStrokeTransparency = 0; hpText.Font = Enum.Font.GothamBold; hpText.TextSize = 11
+    hpText.TextXAlignment = Enum.TextXAlignment.Center
+end
+
+local function updateHPBar()
+    if not hpBar or not alvo then return end
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hp, mx = getVida(alvo)
+    if not hp then return end
+    
+    local dist = 0
+    if root then
+        local p = pegarParte(alvo)
+        if p then dist = (p.Position - root.Position).Magnitude end
+    end
+
+    local pct = math.clamp(hp/(mx or 100),0,1)
+    local f = hpBar:FindFirstChild("B") and hpBar.B:FindFirstChild("F")
+    if f then
+        f.Size = UDim2.new(pct,0,1,0)
+        f.BackgroundColor3 = pct>0.6 and Color3.fromRGB(0,200,0) or (pct>0.3 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,50,50))
+    end
+    local hTxt = hpBar:FindFirstChild("H")
+    if hTxt then 
+        hTxt.Text = string.format("%d/%d | %dm", math.floor(hp), math.floor(mx or 100), math.floor(dist)) 
+    end
+end
+
 -- LOCK CRAVADO
 local function acharAlvo()
     local melhor, angMin = nil, math.rad(FOV_GRAUS)
@@ -103,6 +158,7 @@ local function pararLock()
     ativo = false; alvo = nil
     RunService:UnbindFromRenderStep("EZEK_CAM")
     if gyro then gyro:Destroy(); gyro = nil end
+    if hpBar then hpBar:Destroy(); hpBar = nil end -- 🔥 Limpa a barra
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if h then h.AutoRotate = true end
 end
@@ -124,7 +180,6 @@ local function atualizarLock()
     if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
     if camera.CameraSubject ~= h then camera.CameraSubject = h end
 
-    -- 🔥 AQUI ESCOLHE O OSSO PRA MIRAR
     local miraPos = p.Position
     if miraPeito then
         local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
@@ -134,12 +189,12 @@ local function atualizarLock()
         if cabeca then miraPos = cabeca.Position end
     end
     
-    -- Câmera sobe fisicamente
     local posicaoAtual = camera.CFrame.Position
     local novaPosicao = Vector3.new(posicaoAtual.X, root.Position.Y + alturaCamera, posicaoAtual.Z)
     local cframeAlvo = CFrame.lookAt(novaPosicao, miraPos)
     
     camera.CFrame = camera.CFrame:Lerp(cframeAlvo, 0.5)
+    updateHPBar() -- 🔥 Atualiza a barra
 end
 
 local function toggleLock()
@@ -147,6 +202,7 @@ local function toggleLock()
         local t = acharAlvo()
         if not t then return end
         alvo = t; ativo = true
+        criarHPBar(t) -- 🔥 Cria a barra
         local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if root then
             if gyro then gyro:Destroy() end
@@ -258,7 +314,9 @@ RunService.RenderStepped:Connect(function()
                         d.cont.Visible = true
                         d.cont.Size = UDim2.new(0, lar, 0, alt); d.cont.Position = UDim2.new(0, cx, 0, cy)
                         local hVal, hMax = getVida(m)
-                        if hVal then d.hp.Text = string.format("%d/%d", math.floor(hVal), math.floor(hMax or 100)) end
+                        local dist = (p.Position - root.Position).Magnitude
+                        -- 🔥 MOSTRA VIDA E DISTÂNCIA NO ESP
+                        if hVal then d.hp.Text = string.format("%d/%d | %dm", math.floor(hVal), math.floor(hMax or 100), math.floor(dist)) end
                     else d.cont.Visible = false end
                 else d.cont.Visible = false end
             end
@@ -335,7 +393,6 @@ btnEsp.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnEsp.Text = "👁️ ESP
 btnEsp.TextColor3 = Color3.new(1,1,1); btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0, 6)
 
--- 🔥 BOTÃO DE MIRA CABEÇA/PEITO
 local btnMira = Instance.new("TextButton", main)
 btnMira.Size = UDim2.new(1, -20, 0, 35); btnMira.Position = UDim2.new(0, 10, 0, 136)
 btnMira.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnMira.Text = "🎯 MIRA: CABEÇA"
@@ -385,68 +442,4 @@ mkCheckInContainer("📦 Objetos", "objetos", 75)
 local function atualizarBotoes()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
     btnLock.BackgroundColor3 = ativo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
-    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
-    btnEsp.BackgroundColor3 = espAtivo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
-end
-
-btnLock.MouseButton1Click:Connect(function()
-    toggleLock()
-    atualizarBotoes()
-end)
-
-btnEsp.MouseButton1Click:Connect(function()
-    toggleESP()
-    atualizarBotoes()
-end)
-
--- 🔥 LÓGICA DO BOTÃO DE MIRA
-btnMira.MouseButton1Click:Connect(function()
-    miraPeito = not miraPeito
-    if miraPeito then
-        btnMira.Text = "🎯 MIRA: PEITO"
-        btnMira.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- Vermelho pra diferenciar
-    else
-        btnMira.Text = "🎯 MIRA: CABEÇA"
-        btnMira.BackgroundColor3 = Color3.fromRGB(40, 40, 50) -- Cinza normal
-    end
-end)
-
-btnCam.MouseButton1Click:Connect(function()
-    opcaoIndex = opcaoIndex + 1
-    if opcaoIndex > #opcoesAltura then opcaoIndex = 1 end
-    alturaCamera = opcoesAltura[opcaoIndex]
-    btnCam.Text = "📷 CÂMERA ACIMA: " .. tostring(alturaCamera)
-end)
-
-UIS.InputBegan:Connect(function(input, gp)
-    local nosso = input.KeyCode == Enum.KeyCode.P or input.KeyCode == Enum.KeyCode.O
-        or input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2
-        or input.KeyCode == Enum.KeyCode.ButtonL1 or input.KeyCode == Enum.KeyCode.ButtonL2
-    if gp and not nosso then return end
-    
-    if input.KeyCode == Enum.KeyCode.P then toggleLock(); atualizarBotoes(); return end
-    if input.KeyCode == Enum.KeyCode.O then toggleESP(); atualizarBotoes(); return end
-
-    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
-    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
-    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
-    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
-
-    if r1 and r2 then
-        local a = tick()
-        if a-uL > 0.8 then toggleLock(); atualizarBotoes(); uL = a; r1=false; r2=false end
-    end
-    if l1 and l2 then
-        local a = tick()
-        if a-uE > 0.8 then toggleESP(); atualizarBotoes(); uE = a; l1=false; l2=false end
-    end
-end)
-
-UIS.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = false end
-    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = false end
-    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = false end
-    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
-end)
-
-print("⚡ EZEK " .. VERSAO .. " Carregado! Seleção de Mira Ativada.")
+    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ E
