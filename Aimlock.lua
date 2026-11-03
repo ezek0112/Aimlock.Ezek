@@ -1,4 +1,4 @@
--- EZEK v21.0 - LOCK E ESP EM TUDO (Dummies, Monstros, Players, Objetos)
+-- EZEK v21.1 - CÂMERA LIVRE (Sem travamento) + Lock no Corpo
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v21.0"
+local VERSAO = "v21.1"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
@@ -20,34 +20,19 @@ local espEl = {}
 local inclinacaoAtual = 2.5 
 
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
-
--- 🔥 CACHE DA LISTA (Pra não lagar e não perder alvo)
-local cache = {}
-local cacheT = 0
+local cache, cacheT = {}, 0
 
 local function getVida(m)
     local h = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
     if h then return h.Health, h.MaxHealth end
-    
     local attrs = {"Health", "HP", "Vida", "health", "hp", "vida", "CurrentHealth", "MaxHealth"}
     for _, a in ipairs(attrs) do
         local v = m:GetAttribute(a)
         if type(v) == "number" then return v, 100 end
     end
-    
-    for _, obj in ipairs(m:GetDescendants()) do
-        if obj:IsA("NumberValue") or obj:IsA("IntValue") then
-            local n = string.lower(obj.Name)
-            if n:find("health") or n:find("hp") or n:find("vida") then
-                return obj.Value, 100
-            end
-        end
-    end
     return nil,nil
 end
-
 local function temVida(m) local hp = getVida(m) return hp and hp > 0 end
-
 local function pegarParte(m)
     if not m then return nil end
     if m:IsA("BasePart") then return m end
@@ -55,44 +40,31 @@ local function pegarParte(m)
         or m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") 
         or m:FindFirstChildWhichIsA("BasePart")
 end
-
 local function getTipo(m)
     if Players:GetPlayerFromCharacter(m) then return "players" end
     local n = string.lower(m.Name)
-    if n:find("dummy") or n:find("training") or n:find("test") then return "dummies" end
+    if n:find("dummy") or n:find("training") then return "dummies" end
     if m:FindFirstChildOfClass("Humanoid") or temVida(m) then return "monstros" end
     return "objetos"
 end
 
--- 🔥 BUSCA PROFUNDA COM CACHE
 local function getTodos()
     local t = tick()
-    if t - cacheT < 1 and #cache > 0 then
-        return cache
-    end
-    
-    local lista = {}
-    local vistos = {}
-    
+    if t - cacheT < 1 and #cache > 0 then return cache end
+    local lista, vistos = {}, {}
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player and p.Character and temVida(p.Character) and not vistos[p.Character] then
-            table.insert(lista, p.Character); vistos[p.Character] = true
-        end
+        if p ~= player and p.Character and temVida(p.Character) then table.insert(lista, p.Character); vistos[p.Character]=true end
     end
-    
     local function proc(pasta, prof)
         if prof > 6 then return end
         for _, v in pairs(pasta:GetChildren()) do
             if v:IsA("Model") and v ~= player.Character and temVida(v) and pegarParte(v) and not vistos[v] then
-                table.insert(lista, v); vistos[v] = true
+                table.insert(lista, v); vistos[v]=true
             end
-            if v:IsA("Folder") or v:IsA("Model") then 
-                proc(v, prof + 1) 
-            end
+            if v:IsA("Folder") or v:IsA("Model") then proc(v, prof+1) end
         end
     end
     proc(workspace, 0)
-    
     cache = lista; cacheT = t
     return lista
 end
@@ -107,7 +79,7 @@ local function acharAlvo()
             local p = pegarParte(m)
             if p then
                 local dist = (p.Position - cp).Magnitude
-                if dist > 0.5 then -- Aceita até 50 centímetros de distância
+                if dist > 0.5 then
                     local ang = math.acos(math.clamp(cl:Dot((p.Position - cp).Unit), -1, 1))
                     if ang < angMin then angMin = ang; melhor = m end
                 end
@@ -123,9 +95,7 @@ local function pararLock()
     RunService:UnbindFromRenderStep("EZEK_CAM")
     if gyro then gyro:Destroy(); gyro = nil end
     local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if h then h.AutoRotate = true; h.CameraOffset = Vector3.new(0,0,0) end
-    camera.CameraType = Enum.CameraType.Custom
-    if h then camera.CameraSubject = h end
+    if h then h.AutoRotate = true end
 end
 
 local function atualizarLock()
@@ -136,49 +106,33 @@ local function atualizarLock()
     local p = pegarParte(alvo)
     if not root or not h or not p then pararLock() return end
 
+    -- 🔥 SÓ GIRA O BONECO, A CÂMERA NÃO É TOCADA
     if gyro then
         local targetPos = Vector3.new(p.Position.X, root.Position.Y, p.Position.Z)
         if (targetPos - root.Position).Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, targetPos) end
     end
-
+    
     h.AutoRotate = false
-    if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
-    if camera.CameraSubject ~= h then camera.CameraSubject = h end
-
-    local cabeca = alvo:FindFirstChild("Head")
-    local peito = alvo:FindFirstChild("UpperTorso") or alvo:FindFirstChild("Torso")
-    local miraPos = p.Position
-
-    if cabeca and peito then
-        if camera.CFrame.Position.Y > cabeca.Position.Y then miraPos = cabeca.Position else miraPos = peito.Position end
-    elseif cabeca then miraPos = cabeca.Position
-    elseif peito then miraPos = peito.Position end
-
-    miraPos = miraPos + Vector3.new(0, inclinacaoAtual, 0)
-    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
 end
 
 local function toggleLock()
     if ativo then pararLock() else
         local t = acharAlvo()
-        if not t then 
-            print("❌ [EZEK] Nenhum alvo encontrado na mira!")
-            return 
-        end
+        if not t then return end
         alvo = t; ativo = true
-        print("🔒 [EZEK] Lockado em: " .. t.Name) -- Isso vai aparecer no console
         local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if root then
             if gyro then gyro:Destroy() end
             gyro = Instance.new("BodyGyro", root)
-            gyro.P = 100000; gyro.D = 1000; gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            -- 🔥 P e D mais baixos pra não bugar a física
+            gyro.P = 30000; gyro.D = 500; gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
         end
         RunService:UnbindFromRenderStep("EZEK_CAM")
         RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizarLock)
     end
 end
 
--- PREVIEW (Quadrado Verde)
+-- PREVIEW
 local espGui = Instance.new("ScreenGui", player.PlayerGui)
 espGui.Name = "EZEK_ESP_Hub"; espGui.ResetOnSpawn = false; espGui.IgnoreGuiInset = true
 
@@ -420,4 +374,4 @@ UIS.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.O then btnEsp:Activate() end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado! Busca Profunda Ativada.")
+print("⚡ EZEK " .. VERSAO .. " Carregado! Câmera Livre.")
