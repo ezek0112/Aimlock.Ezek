@@ -1,4 +1,4 @@
--- EZEK v23.0 - HARD LOCK (Travado na hora) + ESP Completo
+-- EZEK v25.0 - MIRA ACIMA DA CABEÇA (Câmera olha pra cima)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,15 +12,17 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v23.0"
+local VERSAO = "v25.0"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local espEl = {}
-local inclinacaoAtual = 2.5 
 
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 local cache, cacheT = {}, 0
+
+local r1, r2, l1, l2 = false, false, false, false
+local uL, uE = 0, 0
 
 local function getVida(m)
     local h = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChildWhichIsA("Humanoid",true)
@@ -69,7 +71,7 @@ local function getTodos()
     return lista
 end
 
--- LOCK CRAVADO (HARD)
+-- LOCK CRAVADO
 local function acharAlvo()
     local melhor, angMin = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
@@ -106,7 +108,6 @@ local function atualizarLock()
     local p = pegarParte(alvo)
     if not root or not h or not p then pararLock() return end
 
-    -- 🔥 GIRA O CORPO NA HORA (BodyGyro forte)
     if gyro then
         local targetPos = Vector3.new(p.Position.X, root.Position.Y, p.Position.Z)
         if (targetPos - root.Position).Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, targetPos) end
@@ -120,9 +121,9 @@ local function atualizarLock()
     local cabeca = alvo:FindFirstChild("Head")
     if cabeca then miraPos = cabeca.Position end
     
-    miraPos = miraPos + Vector3.new(0, inclinacaoAtual, 0)
+    -- 🔥 AQUI ESTÁ A PORRA DA MIRA PRA CIMA: Adiciona 6 studs acima do inimigo
+    miraPos = miraPos + Vector3.new(0, 6, 0)
     
-    -- 🔥 AQUI É O HARD LOCK: Puxa a câmera na hora, sem deslizar
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
 end
 
@@ -135,7 +136,6 @@ local function toggleLock()
         if root then
             if gyro then gyro:Destroy() end
             gyro = Instance.new("BodyGyro", root)
-            -- P e D altíssimos pra travar o corpo na hora
             gyro.P = 100000; gyro.D = 1000; gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
         end
         RunService:UnbindFromRenderStep("EZEK_CAM")
@@ -243,9 +243,9 @@ end)
 
 -- ===================== UI =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_GUI_v23"; sg.ResetOnSpawn = false
+sg.Name = "EZEK_GUI_v25"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
-main.Size = UDim2.new(0, 180, 0, 330); main.Position = UDim2.new(0, 20, 0.5, -165)
+main.Size = UDim2.new(0, 180, 0, 300); main.Position = UDim2.new(0, 20, 0.5, -150)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
@@ -298,20 +298,6 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
-local dragF, dragStartF, startPosF
-floatingBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragF = true; dragStartF = input.Position; startPosF = floatingBtn.Position
-        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragF = false end end)
-    end
-end)
-UIS.InputChanged:Connect(function(input)
-    if dragF and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStartF
-        floatingBtn.Position = UDim2.new(startPosF.X.Scale, startPosF.X.Offset + delta.X, startPosF.Y.Scale, startPosF.Y.Offset + delta.Y)
-    end
-end)
-
 local btnLock = Instance.new("TextButton", main)
 btnLock.Size = UDim2.new(1, -20, 0, 35); btnLock.Position = UDim2.new(0, 10, 0, 46)
 btnLock.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnLock.Text = "🔓 LOCK: OFF"
@@ -324,20 +310,14 @@ btnEsp.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnEsp.Text = "👁️ ESP
 btnEsp.TextColor3 = Color3.new(1,1,1); btnEsp.Font = Enum.Font.GothamBold; btnEsp.TextSize = 12
 Instance.new("UICorner", btnEsp).CornerRadius = UDim.new(0, 6)
 
-local btnCam = Instance.new("TextButton", main)
-btnCam.Size = UDim2.new(1, -20, 0, 35); btnCam.Position = UDim2.new(0, 10, 0, 136)
-btnCam.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnCam.Text = "📷 INCLINAÇÃO: 2.5"
-btnCam.TextColor3 = Color3.new(1,1,1); btnCam.Font = Enum.Font.GothamBold; btnCam.TextSize = 12
-Instance.new("UICorner", btnCam).CornerRadius = UDim.new(0, 6)
-
 local fTitle = Instance.new("TextLabel", main)
-fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 180)
+fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 136)
 fTitle.BackgroundTransparency = 1; fTitle.Text = "Filtros:"; fTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
 fTitle.Font = Enum.Font.GothamMedium; fTitle.TextSize = 11; fTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 local function mkCheckInContainer(txt, chave, y)
     local cf = Instance.new("Frame", main)
-    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 200 + y); cf.BackgroundTransparency = 1
+    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 156 + y); cf.BackgroundTransparency = 1
     
     local box = Instance.new("TextButton", cf)
     box.Size = UDim2.new(0, 20, 0, 20); box.Position = UDim2.new(0, 0, 0, 2)
@@ -364,29 +344,69 @@ mkCheckInContainer("🎯 Dummies", "dummies", 25)
 mkCheckInContainer("👹 Monstros", "monstros", 50)
 mkCheckInContainer("📦 Objetos", "objetos", 75)
 
-btnLock.MouseButton1Click:Connect(function()
-    toggleLock()
+local function atualizarBotoes()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
     btnLock.BackgroundColor3 = ativo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
+    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
+    btnEsp.BackgroundColor3 = espAtivo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
+end
+
+btnLock.MouseButton1Click:Connect(function()
+    toggleLock()
+    atualizarBotoes()
 end)
 
 btnEsp.MouseButton1Click:Connect(function()
     toggleESP()
-    btnEsp.Text = espAtivo and "👁️ ESP: ON" or "👁️ ESP: OFF"
-    btnEsp.BackgroundColor3 = espAtivo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 50)
+    atualizarBotoes()
 end)
 
-btnCam.MouseButton1Click:Connect(function()
-    if inclinacaoAtual == 2.5 then inclinacaoAtual = 4.0
-    elseif inclinacaoAtual == 4.0 then inclinacaoAtual = 1.0
-    else inclinacaoAtual = 2.5 end
-    btnCam.Text = "📷 INCLINAÇÃO: " .. tostring(inclinacaoAtual)
-end)
-
+-- 🔥 TECLADO E CONTROLE DE VOLTA
 UIS.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.P then btnLock:Activate() end
-    if input.KeyCode == Enum.KeyCode.O then btnEsp:Activate() end
+    local nosso = input.KeyCode == Enum.KeyCode.P or input.KeyCode == Enum.KeyCode.O
+        or input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonR2
+        or input.KeyCode == Enum.KeyCode.ButtonL1 or input.KeyCode == Enum.KeyCode.ButtonL2
+    if gp and not nosso then return end
+    
+    if input.KeyCode == Enum.KeyCode.P then 
+        toggleLock()
+        atualizarBotoes()
+        return 
+    end
+    if input.KeyCode == Enum.KeyCode.O then 
+        toggleESP()
+        atualizarBotoes()
+        return 
+    end
+
+    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = true end
+    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = true end
+    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = true end
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = true end
+
+    if r1 and r2 then
+        local a = tick()
+        if a-uL > 0.8 then 
+            toggleLock()
+            atualizarBotoes()
+            uL = a; r1=false; r2=false 
+        end
+    end
+    if l1 and l2 then
+        local a = tick()
+        if a-uE > 0.8 then 
+            toggleESP()
+            atualizarBotoes()
+            uE = a; l1=false; l2=false 
+        end
+    end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado! Hard Lock Ativado.")
+UIS.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.ButtonR1 then r1 = false end
+    if input.KeyCode == Enum.KeyCode.ButtonR2 then r2 = false end
+    if input.KeyCode == Enum.KeyCode.ButtonL1 then l1 = false end
+    if input.KeyCode == Enum.KeyCode.ButtonL2 then l2 = false end
+end)
+
+print("⚡ EZEK " .. VERSAO .. " Carregado! Mira ACIMA da cabeça.")
