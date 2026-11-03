@@ -1,4 +1,4 @@
--- EZEK v21.1 - CÂMERA LIVRE (Sem travamento) + Lock no Corpo
+-- EZEK v23.0 - HARD LOCK (Travado na hora) + ESP Completo
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v21.1"
+local VERSAO = "v23.0"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
@@ -69,7 +69,7 @@ local function getTodos()
     return lista
 end
 
--- LOCK
+-- LOCK CRAVADO (HARD)
 local function acharAlvo()
     local melhor, angMin = nil, math.rad(FOV_GRAUS)
     local cp = camera.CFrame.Position
@@ -106,13 +106,24 @@ local function atualizarLock()
     local p = pegarParte(alvo)
     if not root or not h or not p then pararLock() return end
 
-    -- 🔥 SÓ GIRA O BONECO, A CÂMERA NÃO É TOCADA
+    -- 🔥 GIRA O CORPO NA HORA (BodyGyro forte)
     if gyro then
         local targetPos = Vector3.new(p.Position.X, root.Position.Y, p.Position.Z)
         if (targetPos - root.Position).Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, targetPos) end
     end
     
     h.AutoRotate = false
+    if camera.CameraType ~= Enum.CameraType.Custom then camera.CameraType = Enum.CameraType.Custom end
+    if camera.CameraSubject ~= h then camera.CameraSubject = h end
+
+    local miraPos = p.Position
+    local cabeca = alvo:FindFirstChild("Head")
+    if cabeca then miraPos = cabeca.Position end
+    
+    miraPos = miraPos + Vector3.new(0, inclinacaoAtual, 0)
+    
+    -- 🔥 AQUI É O HARD LOCK: Puxa a câmera na hora, sem deslizar
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
 end
 
 local function toggleLock()
@@ -124,8 +135,8 @@ local function toggleLock()
         if root then
             if gyro then gyro:Destroy() end
             gyro = Instance.new("BodyGyro", root)
-            -- 🔥 P e D mais baixos pra não bugar a física
-            gyro.P = 30000; gyro.D = 500; gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            -- P e D altíssimos pra travar o corpo na hora
+            gyro.P = 100000; gyro.D = 1000; gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
         end
         RunService:UnbindFromRenderStep("EZEK_CAM")
         RunService:BindToRenderStep("EZEK_CAM", Enum.RenderPriority.Camera.Value + 1, atualizarLock)
@@ -190,6 +201,14 @@ RunService.RenderStepped:Connect(function()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
+    
+    for m, d in pairs(espEl) do
+        if not m.Parent or not temVida(m) then
+            d.cont:Destroy()
+            espEl[m] = nil
+        end
+    end
+
     for _, m in pairs(getTodos()) do
         if filtros[getTipo(m)] and temVida(m) then
             local p = pegarParte(m)
@@ -217,18 +236,14 @@ RunService.RenderStepped:Connect(function()
                         if hVal then d.hp.Text = string.format("%d/%d", math.floor(hVal), math.floor(hMax or 100)) end
                     else d.cont.Visible = false end
                 else d.cont.Visible = false end
-            else
-                if espEl[m] then espEl[m].cont.Visible = false end
             end
-        else
-            if espEl[m] then espEl[m].cont.Visible = false end
         end
     end
 end)
 
 -- ===================== UI =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "EZEK_GUI_v21"; sg.ResetOnSpawn = false
+sg.Name = "EZEK_GUI_v23"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
 main.Size = UDim2.new(0, 180, 0, 330); main.Position = UDim2.new(0, 20, 0.5, -165)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
@@ -374,4 +389,4 @@ UIS.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.O then btnEsp:Activate() end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado! Câmera Livre.")
+print("⚡ EZEK " .. VERSAO .. " Carregado! Hard Lock Ativado.")
