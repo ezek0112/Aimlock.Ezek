@@ -1,4 +1,4 @@
--- EZEK v20.1 - COMPLETO (Lock + ESP + Filtros + Inclinação) - UI Simples
+-- EZEK v20.2 - COMPLETO + MINIMIZAR
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -13,14 +13,13 @@ for _, obj in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
 end
 pcall(function() RunService:UnbindFromRenderStep("EZEK_CAM") end)
 
-local VERSAO = "v20.1"
+local VERSAO = "v20.2"
 local FOV_GRAUS = 120
 local ativo, alvo, espAtivo = false, nil, false
 local gyro = nil
 local espEl = {}
 local inclinacaoAtual = 2.5 
 
--- FILTROS DE VOLTA
 local filtros = {players=true, dummies=true, monstros=true, objetos=true}
 
 local function getVida(m)
@@ -42,7 +41,6 @@ local function getTipo(m)
     if m:FindFirstChildOfClass("Humanoid") or temVida(m) then return "monstros" end
     return "objetos"
 end
-
 local function getTodos()
     local lista = {}
     for _, p in pairs(Players:GetPlayers()) do
@@ -60,7 +58,6 @@ local function acharAlvo()
     local cp = camera.CFrame.Position
     local cl = camera.CFrame.LookVector
     for _, m in pairs(getTodos()) do
-        -- Usa os filtros pra saber quem pode ser lockado
         if filtros[getTipo(m)] and temVida(m) then
             local p = pegarParte(m)
             if p then
@@ -113,7 +110,6 @@ local function atualizarLock()
     elseif peito then miraPos = peito.Position end
 
     miraPos = miraPos + Vector3.new(0, inclinacaoAtual, 0)
-
     camera.CFrame = CFrame.lookAt(camera.CFrame.Position, miraPos)
 end
 
@@ -192,7 +188,6 @@ RunService.RenderStepped:Connect(function()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     for _, m in pairs(getTodos()) do
-        -- Usa os filtros pro ESP também
         if filtros[getTipo(m)] and temVida(m) then
             local p = pegarParte(m)
             if p then
@@ -228,19 +223,82 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===================== UI SIMPLES COM FILTROS =====================
+-- ===================== UI COM MINIMIZAR =====================
 local sg = Instance.new("ScreenGui", player.PlayerGui)
 sg.Name = "EZEK_GUI_v20"; sg.ResetOnSpawn = false
 local main = Instance.new("Frame", sg)
--- Aumentei a altura pra caber os filtros
 main.Size = UDim2.new(0, 180, 0, 330); main.Position = UDim2.new(0, 20, 0.5, -165)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30); main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
+-- Barra de Título
 local title = Instance.new("TextLabel", main)
 title.Size = UDim2.new(1, 0, 0, 36); title.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 title.Text = "🎯 EZEK " .. VERSAO; title.TextColor3 = Color3.fromRGB(0, 255, 255); title.Font = Enum.Font.GothamBold; title.TextSize = 14
 Instance.new("UICorner", title).CornerRadius = UDim.new(0, 8)
+
+-- Botão Fechar (X)
+local closeBtn = Instance.new("TextButton", title)
+closeBtn.Size = UDim2.new(0, 30, 1, 0); closeBtn.Position = UDim2.new(1, -30, 0, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); closeBtn.Text = "X"; closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+closeBtn.MouseButton1Click:Connect(function() sg:Destroy() end)
+
+-- 🔥 Botão Minimizar (-)
+local minBtn = Instance.new("TextButton", title)
+minBtn.Size = UDim2.new(0, 30, 1, 0); minBtn.Position = UDim2.new(1, -60, 0, 0)
+minBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50); minBtn.Text = "-"; minBtn.TextColor3 = Color3.new(1,1,1)
+minBtn.Font = Enum.Font.GothamBold; minBtn.TextSize = 16
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 8)
+
+-- 🔥 Botão Flutuante pra Reabrir
+local floatingBtn = Instance.new("TextButton", sg)
+floatingBtn.Size = UDim2.new(0, 44, 0, 44); floatingBtn.Position = UDim2.new(0, 20, 0, 100)
+floatingBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); floatingBtn.Text = "🎯"; floatingBtn.TextSize = 20
+floatingBtn.TextColor3 = Color3.fromRGB(0, 255, 255)
+floatingBtn.Visible = false
+Instance.new("UICorner", floatingBtn).CornerRadius = UDim.new(1,0)
+
+minBtn.MouseButton1Click:Connect(function()
+    main.Visible = false
+    floatingBtn.Visible = true
+end)
+
+floatingBtn.MouseButton1Click:Connect(function()
+    main.Visible = true
+    floatingBtn.Visible = false
+end)
+
+-- Arrastar Menu Principal
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Arrastar Botão Flutuante
+local dragF, dragStartF, startPosF
+floatingBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragF = true; dragStartF = input.Position; startPosF = floatingBtn.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragF = false end end)
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragF and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStartF
+        floatingBtn.Position = UDim2.new(startPosF.X.Scale, startPosF.X.Offset + delta.X, startPosF.Y.Scale, startPosF.Y.Offset + delta.Y)
+    end
+end)
 
 local btnLock = Instance.new("TextButton", main)
 btnLock.Size = UDim2.new(1, -20, 0, 35); btnLock.Position = UDim2.new(0, 10, 0, 46)
@@ -260,41 +318,14 @@ btnCam.BackgroundColor3 = Color3.fromRGB(40, 40, 50); btnCam.Text = "📷 INCLIN
 btnCam.TextColor3 = Color3.new(1,1,1); btnCam.Font = Enum.Font.GothamBold; btnCam.TextSize = 12
 Instance.new("UICorner", btnCam).CornerRadius = UDim.new(0, 6)
 
--- FILTROS
 local fTitle = Instance.new("TextLabel", main)
 fTitle.Size = UDim2.new(1, -20, 0, 20); fTitle.Position = UDim2.new(0, 10, 0, 180)
 fTitle.BackgroundTransparency = 1; fTitle.Text = "Filtros:"; fTitle.TextColor3 = Color3.fromRGB(150, 150, 150)
 fTitle.Font = Enum.Font.GothamMedium; fTitle.TextSize = 11; fTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-local function mkCheck(txt, chave, y)
-    local box = Instance.new("TextButton", main)
-    box.Size = UDim2.new(0, 20, 0, 20); box.Position = UDim2.new(0, 10, 0, y)
-    box.BackgroundColor3 = filtros[chave] and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(60, 60, 75)
-    box.Text = filtros[chave] and "✓" or ""; box.TextColor3 = Color3.new(1,1,1)
-    box.Font = Enum.Font.GothamBold; box.TextSize = 12
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
-    
-    local lb = Instance.new("TextLabel", main)
-    lb.Size = UDim2.new(1, -40, 1, 0); lb.Position = UDim2.new(0, 36, 0, 0)
-    lb.BackgroundTransparency = 1; lb.Text = txt; lb.TextColor3 = Color3.new(1,1,1)
-    lb.Font = Enum.Font.GothamMedium; lb.TextSize = 12; lb.TextXAlignment = Enum.TextXAlignment.Left
-
-    box.MouseButton1Click:Connect(function()
-        filtros[chave] = not filtros[chave]
-        box.BackgroundColor3 = filtros[chave] and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(60, 60, 75)
-        box.Text = filtros[chave] and "✓" or ""
-    end)
-    lb.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then box:Activate() end end)
-    return box
-end
-
--- Container pros checkboxes ficarem alinhados
-local chkContainer = Instance.new("Frame", main)
-chkContainer.Size = UDim2.new(1, 0, 0, 100); chkContainer.Position = UDim2.new(0, 0, 0, 200); chkContainer.BackgroundTransparency = 1
-
 local function mkCheckInContainer(txt, chave, y)
-    local cf = Instance.new("Frame", chkContainer)
-    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, y); cf.BackgroundTransparency = 1
+    local cf = Instance.new("Frame", main)
+    cf.Size = UDim2.new(1, -20, 0, 24); cf.Position = UDim2.new(0, 10, 0, 200 + y); cf.BackgroundTransparency = 1
     
     local box = Instance.new("TextButton", cf)
     box.Size = UDim2.new(0, 20, 0, 20); box.Position = UDim2.new(0, 0, 0, 2)
@@ -321,7 +352,6 @@ mkCheckInContainer("🎯 Dummies", "dummies", 25)
 mkCheckInContainer("👹 Monstros", "monstros", 50)
 mkCheckInContainer("📦 Objetos", "objetos", 75)
 
--- Lógica dos botões
 btnLock.MouseButton1Click:Connect(function()
     toggleLock()
     btnLock.Text = ativo and "🔒 LOCK: ON" or "🔓 LOCK: OFF"
@@ -341,11 +371,10 @@ btnCam.MouseButton1Click:Connect(function()
     btnCam.Text = "📷 INCLINAÇÃO: " .. tostring(inclinacaoAtual)
 end)
 
--- Teclas de atalho
 UIS.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.P then btnLock:Activate() end
     if input.KeyCode == Enum.KeyCode.O then btnEsp:Activate() end
 end)
 
-print("⚡ EZEK " .. VERSAO .. " Carregado!")
+print("⚡ EZEK " .. VERSAO .. " Carregado! Minimizar Ativado.")
